@@ -1,0 +1,3 @@
+#!/bin/bash
+
+live-server --watch=null --open='/Viewer/viewer.html?game=/default.res' .
