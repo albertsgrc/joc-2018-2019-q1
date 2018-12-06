@@ -44,6 +44,7 @@ struct PLAYER_NAME : public Player {
         Bottom, BR, Right, RT, Top, TL, Left, LB
     };
 
+    // We iterate this array to find possible movements from a given position
     Dir dirs[8];
 
 
