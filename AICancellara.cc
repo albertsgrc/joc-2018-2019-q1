@@ -30,6 +30,7 @@ struct PLAYER_NAME : public Player {
         return new PLAYER_NAME;
     }
 
+
     //
     const Dir c_dirs[8] = {
         Bottom, BR, Right, RT, Top, TL, Left, LB
@@ -113,7 +114,7 @@ struct PLAYER_NAME : public Player {
         return is_adjacent_to(unit.pos, type);
     }
 
-    inline bool is_adjacent_to(const Pos& pos, const std::function<bool(const Pos&)>& evaluator) {
+    inline bool is_adjacent_to(const Pos& pos, const function<bool(const Pos&)>& evaluator) {
         for (const Dir& d : dirs) {
             if (evaluator(pos + d)) return true;
         }
@@ -213,13 +214,101 @@ struct PLAYER_NAME : public Player {
 
 
     typedef vector<int> VI;
+    typedef vector<bool> VB;
+    typedef vector<VB> VVB;
 
-    VI my_cars;
-    VI my_warriors;
+    VI my_car_ids;
+    VI my_warrior_ids;
 
+
+
+
+
+
+
+    struct PathInfo {
+        Dir dir;
+        int dist;
+        Pos pos;
+
+        PathInfo(Dir dir, int dist, Pos pos) : dir(dir), dist(dir), pos(pos) {}
+        PathInfo() : dist(-1) {}
+
+        bool found() {
+            return dist != -1;
+        }
+    };
+
+    PathInfo bfs(
+            const Pos& initial,
+            const function<bool(const Pos&)>& can_go,
+            const function<bool(const Pos&)>& is_dest,
+            int max_dist = INT_MAX,
+            bool first_allowed = false)
+    {
+        if (is_dest(initial) and first_allowed) return PathInfo(None, 0, initial);
+
+        queue<PathInfo> queue;
+        VVB seen(rows(), VB(cols(), false)); seen[initial.i][initial.j] = true;
+
+        for (const Dir& dir : dirs) {
+            Pos dest = initial + dir;
+            seen[dest.i][dest.j] = true;
+
+            if (can_go(dest)) queue.push(PathInfo(dir, 1, dest));
+        }
+
+        while (not queue.empty() and not is_dest(queue.front().pos)) {
+            PathInfo pathInfoOrigin = queue.front();
+            queue.pop();
+
+            for (const Dir& dir : dirs) {
+                Pos dest = pathInfoOrigin.pos + dir;
+
+                if (not seen[dest.i][dest.j] and can_go(dest)) {
+                    seen[dest.i][dest.j] = true;
+
+                    if (pathInfoOrigin.dist + 1 <= max_dist) {
+                        queue.push(PathInfo(pathInfoOrigin.dir, pathInfoOrigin.dist + 1, dest));
+                    }
+                }
+            }
+        }
+
+        if (not queue.empty()) return queue.front();
+        else return PathInfo();
+
+    }
+
+    PathInfo bfs(const Unit& unit, const Pos& dest, int maxdist = INT_MAX) {
+        return bfs(
+                unit.pos,
+                [&unit, this](const Pos& pos) { return can_move_to(unit, pos); },
+                [&dest](const Pos& pos) { return dest == pos; },
+                maxdist
+                );
+    }
+
+    PathInfo bfs(const Unit& unit, CellType type, int maxdist = INT_MAX) {
+        return bfs(
+                unit.pos,
+                [&unit, this](const Pos& pos) { return can_move_to(unit, pos); },
+                [type, this](const Pos& pos) { return is(pos, type); },
+                maxdist
+        );
+    }
+
+
+    void compute_actions_warriors() {
+
+    }
+
+    void compute_actions_cars() {
+    }
 
     void compute_actions() {
-        // TODO: Implement
+        compute_actions_cars();
+        compute_actions_warriors();
     }
 
     void shuffle_dirs() {
@@ -230,8 +319,8 @@ struct PLAYER_NAME : public Player {
     }
 
     void first_round_initialization() {
-        my_cars = cars(me());
-        my_warriors = warriors(me());
+        my_car_ids = cars(me());
+        my_warrior_ids = warriors(me());
     }
 
 
@@ -240,8 +329,8 @@ struct PLAYER_NAME : public Player {
 
         shuffle_dirs();
 
-        units_to_command.insert(my_warriors.begin(), my_warriors.end());
-        units_to_command.insert(my_cars.begin(), my_cars.end());
+        units_to_command.insert(my_warrior_ids.begin(), my_warrior_ids.end());
+        units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         do {
             compute_actions();
