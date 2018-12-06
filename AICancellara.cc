@@ -39,7 +39,7 @@ struct PLAYER_NAME : public Player {
 //    ██████╔╝██║██║  ██║███████╗╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
 //    ╚═════╝ ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
-
+    // Do not use this array
     const Dir c_dirs[8] = {
         Bottom, BR, Right, RT, Top, TL, Left, LB
     };
@@ -96,9 +96,6 @@ struct PLAYER_NAME : public Player {
 //    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚══════╝  ╚═╝
 
 
-
-
-
     inline bool can_warriors_move() {
         return round() % 4 != me();
     }
@@ -153,7 +150,8 @@ struct PLAYER_NAME : public Player {
 
     inline bool is_adjacent_to(const Pos& pos, const function<bool(const Pos&)>& evaluator) {
         for (const Dir& d : dirs) {
-            if (evaluator(pos + d)) return true;
+            Pos dest = pos + d;
+            if (pos_ok(dest) and evaluator(dest)) return true;
         }
         return false;
     }
@@ -177,10 +175,7 @@ struct PLAYER_NAME : public Player {
         });
     }
 
-
-
     // Has a unit of given type?
-
 
     inline bool has_unit(const Pos& pos, UnitType type = UnitTypeSize) {
         if (type == UnitTypeSize) {
@@ -214,7 +209,6 @@ struct PLAYER_NAME : public Player {
     }
 
     // Is a given unit on any of the following cell types?
-
 
     inline bool is_on(int unit_id, CellType types...) {
         return is_on(unit(unit_id), types);
@@ -323,7 +317,7 @@ struct PLAYER_NAME : public Player {
             int max_dist = INT_MAX,
             bool first_allowed = false)
     {
-        if (is_dest(initial) and first_allowed) return PathInfo(None, 0, initial);
+        if (is_dest(initial) and first_allowed) return { None, 0, initial };
 
         queue<PathInfo> queue;
         VVB seen(rows(), VB(cols(), false)); seen[initial.i][initial.j] = true;
@@ -353,7 +347,7 @@ struct PLAYER_NAME : public Player {
         }
 
         if (not queue.empty()) return queue.front();
-        else return PathInfo();
+        else return {};
 
     }
 
