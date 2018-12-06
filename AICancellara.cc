@@ -9,7 +9,7 @@
  */
 #define PLAYER_NAME Cancellara
 
-#define ensure(condition, message) { if (not (condition)) { cerr << "ERROR: " << message << endl; assert(condition); } }
+#define ensure(condition, message) { if (not (condition)) { cerr << "ERROR: " << (message) << endl; assert(condition); } }
 
 // DISCLAIMER: The following Demo player is *not* meant to do anything
 // sensible. It is provided just to illustrate how to use the API.
@@ -48,6 +48,8 @@ struct PLAYER_NAME : public Player {
     bool can_move_to(const Unit& unit, const Pos& position) {
         ensure(is_adjacent_to(unit, position), "can_move_to with non-adjacent position");
         ensure(round()%4 == me() or unit.type == Car, "can_move_to for warrior on invalid round");
+
+        if (not pos_ok(position)) return false;
 
         Cell c = cell(position.i, position.j);
         switch (unit.type) {
@@ -92,7 +94,9 @@ struct PLAYER_NAME : public Player {
 
     }
 
-    bool is_adjacent_to(const Pos& position, const Unit& unit) {}
+    bool is_adjacent_to(const Pos& position, const Unit& unit) {
+
+    }
 
 
     bool has_unit(const Pos& position, UnitType type = UnitTypeSize) {
