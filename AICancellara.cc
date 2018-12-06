@@ -15,6 +15,11 @@
 // sensible. It is provided just to illustrate how to use the API.
 // Please use AINull.cc as a template for your player.
 
+// Returns a position identifier
+inline int operator~(const Pos& pos) {
+    return pos.i*60 + pos.j;
+}
+
 struct PLAYER_NAME : public Player {
 
     /**
@@ -25,7 +30,33 @@ struct PLAYER_NAME : public Player {
         return new PLAYER_NAME;
     }
 
+    //
+    const Dir c_dirs[8] = {
+        Bottom, BR, Right, RT, Top, TL, Left, LB
+    };
+
+    Dir dirs[8];
+
+
     // Helper methods
+
+    template <class C, class K>
+    auto in_impl(C const& c, K const& key, int )
+    -> decltype(c.find(key), true) {
+        return c.find(key) != c.end();
+    }
+
+    // the general case
+    template <class C, class K>
+    bool in_impl(C const& c, K const& key, ...) {
+        using std::begin; using std::end;
+        return std::find(begin(c), end(c), key) != end(c);
+    }
+
+    template <class Container, class Key>
+    bool in(Container const& c, Key const& key) {
+        return in_impl(c, key, 0);
+    }
 
     template<typename T>
     bool one_of(const T& value) {
@@ -37,77 +68,89 @@ struct PLAYER_NAME : public Player {
         return value == value2 or one_of(value, values...);
     }
 
+
+
     // Movement helpers
 
-    bool can_move_to(int id, const Pos& pos) {
+    inline bool can_warriors_move() {
+        return round() % 4 != me();
+    }
+
+    inline bool can_move_to(int id, const Pos& pos) {
         return can_move_to(unit(id), pos);
     }
 
     // Assumes round()%4 == me()
     // Assumes pos is adjacent to id
-    bool can_move_to(const Unit& unit, const Pos& position) {
-        ensure(is_adjacent_to(unit, position), "can_move_to with non-adjacent position");
-        ensure(round()%4 == me() or unit.type == Car, "can_move_to for warrior on invalid round");
+    inline bool can_move_to(const Unit& unit, const Pos& pos) {
+        ensure(is_adjacent_to(unit, pos), "can_move_to with non-adjacent position");
+        ensure(unit.type == Car or can_warriors_move(), "can_move_to for warrior on invalid round");
 
-        if (not pos_ok(position)) return false;
+        if (not pos_ok(pos)) return false;
 
-        Cell c = cell(position.i, position.j);
+        if (in(used_positions, ~pos)) return false;
+
+        Cell c = cell(pos.i, pos.j);
         switch (unit.type) {
             case Warrior: return one_of(c.type, Desert, City, Road);
             case Car: return can_move(unit.id) and one_of(c.type, Desert, Road);
+            default: _unreachable();
         }
     }
 
-    bool is_adjacent_to(const Unit& unit, const Pos& position) {
-
+    bool is_adjacent_to(const Unit& unit, const Pos& pos) {
+        is_adjacent_to(unit.pos, pos);
     }
 
     bool is_adjacent_to(const Unit& unit, CellType t) {
-
+        is_adjacent_to(unit.pos, t);
     }
 
     bool is_adjacent_to(const Unit& unit, int other_unit_id) {
-
+        is_adjacent_to(unit.pos, other_unit_id);
     }
 
     bool is_adjacent_to(const Unit& unit, UnitType type) {
-
+        is_adjacent_to(unit.pos, type);
     }
 
-    bool is_adjacent_to(const Unit& unit, const Unit& unit2) {
-
+    bool is_adjacent_to(const Unit& unit, const Unit& other_unit) {
+        is_adjacent_to(unit.pos, other_unit);
     }
 
-    bool is_adjacent_to(const Pos& position, const Pos& position2) {
-
+    bool is_adjacent_to(const Pos& pos, std::function<bool(const Pos&)> evaluator) {
+        for (const Dir& d : dirs) {
+            if (evaluator(pos + d)) return true;
+        }
+        return false;
     }
 
-    bool is_adjacent_to(const Pos& position, CellType t) {
-
+    bool is_adjacent_to(const Pos& pos, const Pos& other_pos) {
+        is_adjacent_to(pos, [&other_pos](const Pos& p) { return p == other_pos; });
     }
 
-    bool is_adjacent_to(const Pos& position, int other_unit_id) {
-
+    bool is_adjacent_to(const Pos& pos, CellType type) {
+        is_adjacent_to(pos, [type, this](const Pos& p) { return cell(p).type == type; });
     }
 
-    bool is_adjacent_to(const Pos& position, UnitType type) {
-
+    bool is_adjacent_to(const Pos& pos, int other_unit_id) {
+        is_adjacent_to(pos, [other_unit_id, this](const Pos& p) { return cell(p).id == other_unit_id; });
     }
 
-    bool is_adjacent_to(const Pos& position, const Unit& unit) {
-
+    bool is_adjacent_to(const Pos& pos, UnitType type) {
+        is_adjacent_to(pos, [type, this](const Pos& p) {
+            Cell c = cell(p);
+            return c.id != -1 and unit(c.id).type == type;
+        });
     }
 
 
-    bool has_unit(const Pos& position, UnitType type = UnitTypeSize) {
+    bool has_unit(const Pos& pos, UnitType type = UnitTypeSize) {
         if (type == UnitTypeSize) {
-            return has_unit(position, Warrior) or has_unit(position, Car);
+            return has_unit(pos, Warrior) or has_unit(pos, Car);
         } else {
-            Cell c = cell(position);
-
-            int unit_id = c.id;
-
-            return unit_id != -1 and unit(unit_id).type == type;
+            int unit_id = cell(pos).id;
+            return cell(pos).id != -1 and unit(unit_id).type == type;
         }
     }
 
@@ -121,75 +164,78 @@ struct PLAYER_NAME : public Player {
     }
 
 
-    /**
-     * Types and attributes for your player can be defined here.
-     */
+    // Command control
 
-    typedef vector<int> VE;
+    struct Action {
+        int unit_id;
+        Dir dir;
+        float importance;
 
-    map<int, int> kind; // For cars: 0 -> random, 1 -> Top.
+        Action(int unit_id, Dir dir, float importance) : unit_id(unit_id), dir(dir), importance(importance) {}
 
-    void move_warriors() {
-        if (round() % 4 != me()) return; // This line makes a lot of sense.
-
-        VE W = warriors(me());
-        int n = W.size();
-        VE perm = random_permutation(n);
-        for (int i = 0; i < n; ++i) {
-            // id is an own warrior. For some reason (or not) we treat our warriors in random order.
-            int id = W[perm[i]];
-            if (random(0, 2) == 0) command(id, Right); // With probability 1/3, we move right.
-            else { // Otherwise, ...
-                bool city = false;
-                for (int k = 0; not city and k < 8; ++k) {
-                    Pos p = unit(id).pos;
-                    if (pos_ok(p) and cell(p).type == City) { // if we are next to a city cell, we try to move there.
-                        city = true;
-                        command(id, Dir(k));
-                    }
-                }
-                // Finally, the following code does several things, most of them stupid.
-                // It's just to show that there are many possibilities.
-                if (not city) {
-                    if (round() < 40) command(id, Left);
-                    else if (round() < 120) command(id, None);
-                    else if (random(0, 1)) {
-                        set<Pos> S;
-                        while ((int) S.size() < 4) S.insert(Pos(random(0, 59), random(0, 59)));
-                        vector<Pos> V(S.begin(), S.end());
-                        if (V[random(0, 3)].i >= 30) command(id, Bottom);
-                        else command(id, RT);
-                    } else if (status(0) > 0.8) command(id, Left);
-                    else if (total_score(1) > 10000) command(id, TL);
-                    else if (cell(4, 2).id != -1 and unit(cell(4, 2).id).type == Car) command(id, BR);
-                    else if (unit(id).food < 20) command(id, Dir(2 * random(0, 3)));
-                    else if (unit(id).water > 10) command(id, Left);
-                    else if (cell(10, 20).owner == 2) command(id, None);
-                    else if (num_cities(3) == 1) command(id, LB);
-                    else cerr << unit(id).pos << endl; // You can print to cerr to debug.
-                }
-            }
+        bool operator<(const Action& other) const {
+            return importance < other.importance;
         }
+    };
+
+    priority_queue<Action> actions_queue;
+    set<int> units_to_command;
+    set<int> used_positions;
+
+    void action(int id, Dir dir, float importance) {
+        actions_queue.push(Action(id, dir, importance));
     }
 
-    void move_cars() {
-        vector<int> C = cars(me());
-        for (int id : C) {
-            if (kind.find(id) == kind.end()) kind[id] = random(0, 1);
-            if (can_move(id)) { // This also makes sense.
-                if (kind[id] == 0) command(id, Dir(random(0, 7)));
-                else command(id, Top);
+    void process_actions() {
+        while (!actions_queue.empty()) {
+            Action action = actions_queue.top(); actions_queue.pop();
+
+            Pos destination = unit(action.unit_id).pos + action.dir;
+
+            if (used_positions.insert(~destination).second) {
+                // Was not a used position, perform command
+                command(action.unit_id, action.dir);
+                units_to_command.erase(action.unit_id);
             }
         }
     }
 
 
-    /**
-     * Play method, invoked once per each round.
-     */
+    typedef vector<int> VI;
+
+    VI my_cars;
+    VI my_warriors;
+
+
+    void compute_actions() {
+        // TODO: Implement
+    }
+
+    void shuffle_dirs() {
+        int i = 0;
+        VI permutation = random_permutation(8);
+
+        for (Dir& d : dirs) d = c_dirs[permutation[i++]];
+    }
+
+    void first_round_initialization() {
+        my_cars = cars(me());
+        my_warriors = warriors(me());
+    }
+
+
     void play() {
-        move_warriors();
-        move_cars();
+        if (round() == 0) first_round_initialization();
+
+        shuffle_dirs();
+
+        units_to_command.insert(my_warriors.begin(), my_warriors.end());
+        units_to_command.insert(my_cars.begin(), my_cars.end());
+
+        do {
+            compute_actions();
+            process_actions();
+        } while(!units_to_command.empty());
     }
 };
 
