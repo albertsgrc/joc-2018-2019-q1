@@ -31,7 +31,15 @@ struct PLAYER_NAME : public Player {
     }
 
 
-    //
+
+//    ██████╗ ██╗██████╗ ███████╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗███████╗
+//    ██╔══██╗██║██╔══██╗██╔════╝██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝
+//    ██║  ██║██║██████╔╝█████╗  ██║        ██║   ██║██║   ██║██╔██╗ ██║███████╗
+//    ██║  ██║██║██╔══██╗██╔══╝  ██║        ██║   ██║██║   ██║██║╚██╗██║╚════██║
+//    ██████╔╝██║██║  ██║███████╗╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
+//    ╚═════╝ ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+
+
     const Dir c_dirs[8] = {
         Bottom, BR, Right, RT, Top, TL, Left, LB
     };
@@ -39,7 +47,15 @@ struct PLAYER_NAME : public Player {
     Dir dirs[8];
 
 
-    // Helper methods
+
+//    ██╗  ██╗███████╗██╗     ██████╗ ███████╗██████╗ ███████╗
+//    ██║  ██║██╔════╝██║     ██╔══██╗██╔════╝██╔══██╗██╔════╝
+//    ███████║█████╗  ██║     ██████╔╝█████╗  ██████╔╝███████╗
+//    ██╔══██║██╔══╝  ██║     ██╔═══╝ ██╔══╝  ██╔══██╗╚════██║
+//    ██║  ██║███████╗███████╗██║     ███████╗██║  ██║███████║
+//    ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝
+
+
 
     template <class C, class K>
     auto in_impl(C const& c, K const& key, int )
@@ -71,7 +87,16 @@ struct PLAYER_NAME : public Player {
 
 
 
-    // Movement helpers
+//    ██████╗ █████╗ ███╗   ██╗    ███╗   ███╗ ██████╗ ██╗   ██╗███████╗██████╗
+//    ██╔════╝██╔══██╗████╗  ██║    ████╗ ████║██╔═══██╗██║   ██║██╔════╝╚════██╗
+//    ██║     ███████║██╔██╗ ██║    ██╔████╔██║██║   ██║██║   ██║█████╗    ▄███╔╝
+//    ██║     ██╔══██║██║╚██╗██║    ██║╚██╔╝██║██║   ██║╚██╗ ██╔╝██╔══╝    ▀▀══╝
+//    ╚██████╗██║  ██║██║ ╚████║    ██║ ╚═╝ ██║╚██████╔╝ ╚████╔╝ ███████╗  ██╗
+//    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚══════╝  ╚═╝
+
+
+
+
 
     inline bool can_warriors_move() {
         return round() % 4 != me();
@@ -97,6 +122,17 @@ struct PLAYER_NAME : public Player {
             default: _unreachable();
         }
     }
+
+
+//    ██████╗  ██████╗ ███████╗    ██╗███╗   ██╗███████╗ ██████╗
+//    ██╔══██╗██╔═══██╗██╔════╝    ██║████╗  ██║██╔════╝██╔═══██╗
+//    ██████╔╝██║   ██║███████╗    ██║██╔██╗ ██║█████╗  ██║   ██║
+//    ██╔═══╝ ██║   ██║╚════██║    ██║██║╚██╗██║██╔══╝  ██║   ██║
+//    ██║     ╚██████╔╝███████║    ██║██║ ╚████║██║     ╚██████╔╝
+//    ╚═╝      ╚═════╝ ╚══════╝    ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝
+
+
+    // Adjacency
 
     inline bool is_adjacent_to(const Unit& unit, const Pos& pos) {
         return is_adjacent_to(unit.pos, pos);
@@ -141,6 +177,10 @@ struct PLAYER_NAME : public Player {
     }
 
 
+
+    // Has a unit of given type?
+
+
     inline bool has_unit(const Pos& pos, UnitType type = UnitTypeSize) {
         if (type == UnitTypeSize) {
             return has_unit(pos, Warrior) or has_unit(pos, Car);
@@ -150,9 +190,13 @@ struct PLAYER_NAME : public Player {
         }
     }
 
+    // Is it of a given cell type?
+
     inline bool is(const Pos& pos, CellType cellType) {
         return cell(pos).type == cellType;
     }
+
+    // Is it any of the following cell types?
 
     inline bool is_any(const Pos& pos, CellType cellType) {
         return is(pos, cellType);
@@ -162,21 +206,35 @@ struct PLAYER_NAME : public Player {
         return is(pos, cellType) || is_any(pos, others);
     }
 
-    inline bool is(const Pos& pos, UnitType type) {
+    // Same as has_unit
+
+    inline bool is_on(const Pos& pos, UnitType type) {
         return has_unit(pos, type);
     }
 
-    inline bool is_on(int unit_id, CellType cellType) {
-        return is_on(unit(unit_id), cellType);
+    // Is a given unit on any of the following cell types?
+
+
+    inline bool is_on(int unit_id, CellType types...) {
+        return is_on(unit(unit_id), types);
     }
 
 
-    inline bool is_on(const Unit& unit, CellType cellType) {
-        return cell(unit.pos).type == cellType;
+    inline bool is_on(const Unit& unit, CellType types...) {
+        return is_any(unit.pos, types);
     }
 
 
-    // Command control
+
+
+//    ██████╗ ██████╗ ███╗   ███╗███╗   ███╗ █████╗ ███╗   ██╗██████╗      ██████╗ ██████╗ ███╗   ██╗████████╗██████╗  ██████╗ ██╗
+//    ██╔════╝██╔═══██╗████╗ ████║████╗ ████║██╔══██╗████╗  ██║██╔══██╗    ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔═══██╗██║
+//    ██║     ██║   ██║██╔████╔██║██╔████╔██║███████║██╔██╗ ██║██║  ██║    ██║     ██║   ██║██╔██╗ ██║   ██║   ██████╔╝██║   ██║██║
+//    ██║     ██║   ██║██║╚██╔╝██║██║╚██╔╝██║██╔══██║██║╚██╗██║██║  ██║    ██║     ██║   ██║██║╚██╗██║   ██║   ██╔══██╗██║   ██║██║
+//    ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║██║  ██║██║ ╚████║██████╔╝    ╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║  ██║╚██████╔╝███████╗
+//    ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+
+
 
     struct Action {
         int unit_id;
@@ -194,8 +252,9 @@ struct PLAYER_NAME : public Player {
     set<int> units_to_command;
     set<int> used_positions;
 
-    void action(int id, Dir dir, float importance) {
-        actions_queue.push(Action(id, dir, importance));
+    // Call this method instead of command
+    void action(int unit_id, Dir dir, float importance) {
+        actions_queue.push(Action(unit_id, dir, importance));
     }
 
     void process_actions() {
@@ -213,6 +272,17 @@ struct PLAYER_NAME : public Player {
     }
 
 
+
+//    ███████╗████████╗ █████╗ ████████╗███████╗
+//    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██╔════╝
+//    ███████╗   ██║   ███████║   ██║   █████╗
+//    ╚════██║   ██║   ██╔══██║   ██║   ██╔══╝
+//    ███████║   ██║   ██║  ██║   ██║   ███████╗
+//    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝
+
+
+
+
     typedef vector<int> VI;
     typedef vector<bool> VB;
     typedef vector<VB> VVB;
@@ -222,19 +292,25 @@ struct PLAYER_NAME : public Player {
 
 
 
+//    ██████╗  █████╗ ████████╗██╗  ██╗███████╗██╗███╗   ██╗██████╗ ██╗███╗   ██╗ ██████╗
+//    ██╔══██╗██╔══██╗╚══██╔══╝██║  ██║██╔════╝██║████╗  ██║██╔══██╗██║████╗  ██║██╔════╝
+//    ██████╔╝███████║   ██║   ███████║█████╗  ██║██╔██╗ ██║██║  ██║██║██╔██╗ ██║██║  ███╗
+//    ██╔═══╝ ██╔══██║   ██║   ██╔══██║██╔══╝  ██║██║╚██╗██║██║  ██║██║██║╚██╗██║██║   ██║
+//    ██║     ██║  ██║   ██║   ██║  ██║██║     ██║██║ ╚████║██████╔╝██║██║ ╚████║╚██████╔╝
+//    ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═══╝╚═════╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
 
 
-
+    // This data structure holds the result of a pathfinding call
 
     struct PathInfo {
-        Dir dir;
-        int dist;
-        Pos pos;
+        Dir dir; // Direction where you need to go
+        int dist; // Distance to de destination
+        Pos pos; // not useful
 
         PathInfo(Dir dir, int dist, Pos pos) : dir(dir), dist(dir), pos(pos) {}
         PathInfo() : dist(-1) {}
 
-        bool found() {
+        bool found() { // Returns whether a path was found
             return dist != -1;
         }
     };
@@ -300,10 +376,12 @@ struct PLAYER_NAME : public Player {
 
 
     void compute_actions_warriors() {
-
+        // TODO: Call action(int unit_id, Dir dir, float importance)
     }
 
     void compute_actions_cars() {
+
+        // TODO: Call action(int unit_id, Dir dir, float importance)
     }
 
     void compute_actions() {
@@ -311,6 +389,8 @@ struct PLAYER_NAME : public Player {
         compute_actions_warriors();
     }
 
+    // Shuffles the directions array
+    // I don't remember why but this produces better warrior/car movements overall
     void shuffle_dirs() {
         int i = 0;
         VI permutation = random_permutation(8);
@@ -318,6 +398,7 @@ struct PLAYER_NAME : public Player {
         for (Dir& dir : dirs) dir = c_dirs[permutation[i++]];
     }
 
+    // Called only on the first round to perform some initialization
     void first_round_initialization() {
         my_car_ids = cars(me());
         my_warrior_ids = warriors(me());
