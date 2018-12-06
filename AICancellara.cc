@@ -98,54 +98,50 @@ struct PLAYER_NAME : public Player {
         }
     }
 
-    bool is_adjacent_to(const Unit& unit, const Pos& pos) {
-        is_adjacent_to(unit.pos, pos);
+    inline bool is_adjacent_to(const Unit& unit, const Pos& pos) {
+        return is_adjacent_to(unit.pos, pos);
     }
 
-    bool is_adjacent_to(const Unit& unit, CellType t) {
-        is_adjacent_to(unit.pos, t);
+    inline bool is_adjacent_to(const Unit& unit, CellType t) {
+        return is_adjacent_to(unit.pos, t);
     }
 
-    bool is_adjacent_to(const Unit& unit, int other_unit_id) {
-        is_adjacent_to(unit.pos, other_unit_id);
+    inline bool is_adjacent_to(const Unit& unit, int other_unit_id) {
+        return is_adjacent_to(unit.pos, other_unit_id);
     }
 
-    bool is_adjacent_to(const Unit& unit, UnitType type) {
-        is_adjacent_to(unit.pos, type);
+    inline bool is_adjacent_to(const Unit& unit, UnitType type) {
+        return is_adjacent_to(unit.pos, type);
     }
 
-    bool is_adjacent_to(const Unit& unit, const Unit& other_unit) {
-        is_adjacent_to(unit.pos, other_unit);
-    }
-
-    bool is_adjacent_to(const Pos& pos, std::function<bool(const Pos&)> evaluator) {
+    inline bool is_adjacent_to(const Pos& pos, std::function<bool(const Pos&)> evaluator) {
         for (const Dir& d : dirs) {
             if (evaluator(pos + d)) return true;
         }
         return false;
     }
 
-    bool is_adjacent_to(const Pos& pos, const Pos& other_pos) {
-        is_adjacent_to(pos, [&other_pos](const Pos& p) { return p == other_pos; });
+    inline bool is_adjacent_to(const Pos& pos, const Pos& other_pos) {
+        return is_adjacent_to(pos, [&other_pos](const Pos& p) { return p == other_pos; });
     }
 
-    bool is_adjacent_to(const Pos& pos, CellType type) {
-        is_adjacent_to(pos, [type, this](const Pos& p) { return cell(p).type == type; });
+    inline bool is_adjacent_to(const Pos& pos, CellType type) {
+        return is_adjacent_to(pos, [type, this](const Pos& p) { return cell(p).type == type; });
     }
 
-    bool is_adjacent_to(const Pos& pos, int other_unit_id) {
-        is_adjacent_to(pos, [other_unit_id, this](const Pos& p) { return cell(p).id == other_unit_id; });
+    inline bool is_adjacent_to(const Pos& pos, int other_unit_id) {
+        return is_adjacent_to(pos, [other_unit_id, this](const Pos& p) { return cell(p).id == other_unit_id; });
     }
 
-    bool is_adjacent_to(const Pos& pos, UnitType type) {
-        is_adjacent_to(pos, [type, this](const Pos& p) {
+    inline bool is_adjacent_to(const Pos& pos, UnitType type) {
+        return is_adjacent_to(pos, [type, this](const Pos& p) {
             Cell c = cell(p);
             return c.id != -1 and unit(c.id).type == type;
         });
     }
 
 
-    bool has_unit(const Pos& pos, UnitType type = UnitTypeSize) {
+    inline bool has_unit(const Pos& pos, UnitType type = UnitTypeSize) {
         if (type == UnitTypeSize) {
             return has_unit(pos, Warrior) or has_unit(pos, Car);
         } else {
@@ -154,12 +150,12 @@ struct PLAYER_NAME : public Player {
         }
     }
 
-    bool is_on(int unit_id, CellType cellType) {
+    inline bool is_on(int unit_id, CellType cellType) {
         return is_on(unit(unit_id), cellType);
     }
 
 
-    bool is_on(const Unit& unit, CellType cellType) {
+    inline bool is_on(const Unit& unit, CellType cellType) {
         return cell(unit.pos).type == cellType;
     }
 
@@ -215,7 +211,7 @@ struct PLAYER_NAME : public Player {
         int i = 0;
         VI permutation = random_permutation(8);
 
-        for (Dir& d : dirs) d = c_dirs[permutation[i++]];
+        for (Dir& dir : dirs) dir = c_dirs[permutation[i++]];
     }
 
     void first_round_initialization() {
