@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cp AIDummy.o.MacOS AIDummy.o
+make
+./Game InnerBloom Demo Demo Demo -s 30 -i default.cnf -o default.res

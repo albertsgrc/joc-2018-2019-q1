@@ -90,10 +90,9 @@ struct PLAYER_NAME : public Player {
 
         if (in(used_positions, ~pos)) return false;
 
-        Cell c = cell(pos.i, pos.j);
         switch (unit.type) {
-            case Warrior: return one_of(c.type, Desert, City, Road);
-            case Car: return can_move(unit.id) and one_of(c.type, Desert, Road);
+            case Warrior: return is_any(pos, Desert, City, Road);
+            case Car: return can_move(unit.id) and is_any(pos, City, Road);
             default: _unreachable();
         }
     }
@@ -114,7 +113,7 @@ struct PLAYER_NAME : public Player {
         return is_adjacent_to(unit.pos, type);
     }
 
-    inline bool is_adjacent_to(const Pos& pos, std::function<bool(const Pos&)> evaluator) {
+    inline bool is_adjacent_to(const Pos& pos, const std::function<bool(const Pos&)>& evaluator) {
         for (const Dir& d : dirs) {
             if (evaluator(pos + d)) return true;
         }
@@ -126,7 +125,7 @@ struct PLAYER_NAME : public Player {
     }
 
     inline bool is_adjacent_to(const Pos& pos, CellType type) {
-        return is_adjacent_to(pos, [type, this](const Pos& p) { return cell(p).type == type; });
+        return is_adjacent_to(pos, [type, this](const Pos& p) { return is(p, type); });
     }
 
     inline bool is_adjacent_to(const Pos& pos, int other_unit_id) {
@@ -148,6 +147,22 @@ struct PLAYER_NAME : public Player {
             int unit_id = cell(pos).id;
             return cell(pos).id != -1 and unit(unit_id).type == type;
         }
+    }
+
+    inline bool is(const Pos& pos, CellType cellType) {
+        return cell(pos).type == cellType;
+    }
+
+    inline bool is_any(const Pos& pos, CellType cellType) {
+        return is(pos, cellType);
+    }
+
+    inline bool is_any(const Pos& pos, CellType cellType, CellType others...) {
+        return is(pos, cellType) || is_any(pos, others);
+    }
+
+    inline bool is(const Pos& pos, UnitType type) {
+        return has_unit(pos, type);
     }
 
     inline bool is_on(int unit_id, CellType cellType) {

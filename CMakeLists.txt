@@ -34,4 +34,5 @@ add_executable(joc_2018_2019_q1
         Structs.hh
         Utils.cc
         Utils.hh
+        AIRufus.cc
         AIDummy.o)
