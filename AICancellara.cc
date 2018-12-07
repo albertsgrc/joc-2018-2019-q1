@@ -514,16 +514,29 @@ struct PLAYER_NAME : public Player {
 
 
     void compute_action_warrior(const Unit& warrior) {
+        cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
         PathInfo water = bfs(warrior, Safe, Adjacent, Water);
 
-        PathInfo own_city = bfs(warrior, Safe, ExactlyThere, Own);
+        PathInfo city = bfs(warrior, Safe, ExactlyThere, Anyone);
         PathInfo enemy_city = bfs(warrior, Unsafe, ExactlyThere, Enemy);
         PathInfo enemy_warrior = bfs(warrior, Unsafe, Enemy, Warrior);
 
-        if (water.dist >= warrior.water + 5) action(warrior, water, 5);
-        else if (own_city.found() and own_city.dist >= warrior.food + 5) action(warrior, own_city, 5);
-        else if (enemy_warrior.found() and warrior.water > unit_pos(enemy_warrior.dest).water and random(0.5)) action(warrior, enemy_warrior, 2);
-        else action(warrior, enemy_city, (float(round())/nb_rounds())*10);
+        if (water.dist >= warrior.water - 25 and city.dist < warrior.food - 20) {
+            cerr << "Warrior going for wateeeer" << endl;
+            action(warrior, water, 5);
+        }
+        else if (city.found() and city.dist >= warrior.food - 15) {
+            cerr << "Warrior going for own city" << endl;
+            action(warrior, city, 5);
+        }
+        else if (enemy_warrior.found() and warrior.water > unit_pos(enemy_warrior.dest).water and random(0.5)) {
+            cerr << "Warrior going for enemy" << endl;
+            action(warrior, enemy_warrior, 2);
+        }
+        else {
+            cerr << "Warrior going for enemy city" << endl;
+            action(warrior, enemy_city, (float(round())/nb_rounds())*10);
+        }
     }
 
     void compute_action_car(const Unit& car) {
