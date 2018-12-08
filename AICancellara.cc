@@ -16,8 +16,11 @@
 // sensible. It is provided just to illustrate how to use the API.
 // Please use AINull.cc as a template for your player.
 
+typedef const Pos& P;
+typedef Dir D;
+
 // Returns a position identifier
-inline int operator~(const Pos& pos) {
+inline int operator~(P pos) {
     return pos.i*60 + pos.j;
 }
 
@@ -59,12 +62,12 @@ struct PLAYER_NAME : public Player {
 //    ╚═════╝ ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
     // Do not use this array
-    const Dir c_dirs[8] = {
+    const D c_dirs[8] = {
         Bottom, BR, Right, RT, Top, TL, Left, LB
     };
 
     // We iterate this array to find possible movements from a given position
-    Dir dirs[8];
+    D dirs[8];
 
 
 
@@ -127,7 +130,7 @@ struct PLAYER_NAME : public Player {
     // Assumes round()%4 == me()
     // Assumes pos is adjacent to id
     // TODO: Moving to a position where there is possibly going to be a friendly unit should not be possible
-    inline bool can_move_to(const Unit& unit, const Pos& pos, Safety safety, UseState useState = DoesntMatterTaken) {
+    inline bool can_move_to(const Unit& unit, P pos, Safety safety, UseState useState = DoesntMatterTaken) {
         if (not pos_ok(pos)) return false;
 
         //ensure(is_adjacent_to(unit, pos), "can_move_to with non-adjacent position");
@@ -161,33 +164,33 @@ struct PLAYER_NAME : public Player {
 
     // Adjacency
 
-    inline bool is_adjacent_to(const Pos& pos, const function<bool(const Pos&)>& evaluator) {
-        for (const Dir& d : dirs) {
+    inline bool is_adjacent_to(P pos, const function<bool(P)>& evaluator) {
+        for (const D& d : dirs) {
             Pos dest = pos + d;
             if (pos_ok(dest) and evaluator(dest)) return true;
         }
         return false;
     }
 
-    inline bool is_adjacent_to(const Pos& pos, const Pos& other_pos) {
-        return is_adjacent_to(pos, [&other_pos](const Pos& p) { return p == other_pos; });
+    inline bool is_adjacent_to(P pos, P other_pos) {
+        return is_adjacent_to(pos, [&other_pos](P p) { return p == other_pos; });
     }
 
-    inline bool is_adjacent_to(const Pos& pos, CellType type) {
-        return is_adjacent_to(pos, [type, this](const Pos& p) { return is(p, type); });
+    inline bool is_adjacent_to(P pos, CellType type) {
+        return is_adjacent_to(pos, [type, this](P p) { return is(p, type); });
     }
 
 
-    inline bool is_adjacent_to(const Pos& pos, Owner owner) {
-        return is_adjacent_to(pos, [owner, this](const Pos& p) { return is(p, owner); });
+    inline bool is_adjacent_to(P pos, Owner owner) {
+        return is_adjacent_to(pos, [owner, this](P p) { return is(p, owner); });
     }
 
-    inline bool is_adjacent_to(const Pos& pos, int other_unit_id) {
-        return is_adjacent_to(pos, [other_unit_id, this](const Pos& p) { return cell(p).id == other_unit_id; });
+    inline bool is_adjacent_to(P pos, int other_unit_id) {
+        return is_adjacent_to(pos, [other_unit_id, this](P p) { return cell(p).id == other_unit_id; });
     }
 
-    inline bool is_adjacent_to(const Pos& pos, UnitType type) {
-        return is_adjacent_to(pos, [type, this](const Pos& p) {
+    inline bool is_adjacent_to(P pos, UnitType type) {
+        return is_adjacent_to(pos, [type, this](P p) {
             Cell c = cell(p);
             return c.id != -1 and unit(c.id).type == type;
         });
@@ -195,7 +198,7 @@ struct PLAYER_NAME : public Player {
 
     // Has a unit of given type?
 
-    inline bool has_unit(const Pos& pos, UnitType type = UnitTypeSize) {
+    inline bool has_unit(P pos, UnitType type = UnitTypeSize) {
         if (type == UnitTypeSize) {
             return cell(pos).id != -1;
         } else {
@@ -206,13 +209,13 @@ struct PLAYER_NAME : public Player {
 
     // Is it of a given cell type?
 
-    inline bool is(const Pos& pos, CellType cellType) {
+    inline bool is(P pos, CellType cellType) {
         return cell(pos).type == cellType;
     }
 
     // Is it a city of a given owner?
 
-    inline bool is(const Pos& pos, Owner owner) {
+    inline bool is(P pos, Owner owner) {
         if(!is(pos, City)) return owner == Anyone;
         else {
             int owner_id = cell(pos).owner;
@@ -224,7 +227,7 @@ struct PLAYER_NAME : public Player {
 
     // Is it any of the following cell types?
 
-    inline bool is_any(const Pos& pos, initializer_list<CellType> list) {
+    inline bool is_any(P pos, initializer_list<CellType> list) {
         for (auto type : list) {
             if (is(pos, type)) return true;
         }
@@ -233,7 +236,7 @@ struct PLAYER_NAME : public Player {
 
     // Same as has_unit
 
-    inline bool is_on(const Pos& pos, UnitType type) {
+    inline bool is_on(P pos, UnitType type) {
         return has_unit(pos, type);
     }
 
@@ -247,7 +250,7 @@ struct PLAYER_NAME : public Player {
         return is_any(unit.pos, list);
     }
 
-    inline bool is_on(const Pos& pos, Owner owner, UnitType type = UnitTypeSize) {
+    inline bool is_on(P pos, Owner owner, UnitType type = UnitTypeSize) {
         bool has = has_unit(pos, type);
 
         if (not has) return false;
@@ -259,7 +262,7 @@ struct PLAYER_NAME : public Player {
     }
 
 
-    inline Unit unit_pos(const Pos& pos) {
+    inline Unit unit_pos(P pos) {
         Cell c = cell(pos);
 
         ensure(c.id != -1, "Get unit from pos without any unit");
@@ -267,7 +270,7 @@ struct PLAYER_NAME : public Player {
         return Info::unit(c.id);
     }
 
-    inline bool is_taken(const Pos& pos) {
+    inline bool is_taken(P pos) {
         return in(used_positions, ~pos);
     }
 
@@ -282,10 +285,10 @@ struct PLAYER_NAME : public Player {
 
     struct Action {
         int unit_id;
-        Dir dir;
+        D dir;
         float importance;
 
-        Action(int unit_id, Dir dir, float importance) : unit_id(unit_id), dir(dir), importance(importance) {}
+        Action(int unit_id, D dir, float importance) : unit_id(unit_id), dir(dir), importance(importance) {}
 
         bool operator<(const Action& other) const {
             return importance < other.importance;
@@ -297,11 +300,11 @@ struct PLAYER_NAME : public Player {
     set<int> used_positions;
 
     // Call this method instead of command
-    void action(int unit_id, Dir dir, float importance) {
+    void action(int unit_id, D dir, float importance) {
         actions_queue.push(Action(unit_id, dir, importance));
     }
 
-    void action(const Unit& unit, Dir dir, float importance) {
+    void action(const Unit& unit, D dir, float importance) {
         action(unit.id, dir, importance);
     }
 
@@ -368,12 +371,12 @@ struct PLAYER_NAME : public Player {
     // This data structure holds the result of a pathfinding call
 
     struct PathInfo {
-        Dir dir; // Direction where you need to go
+        D dir; // Direction where you need to go
         int dist; // Distance to get to the destination
         int rounds; // Rounds to get to the destination
         Pos dest; // not useful
 
-        PathInfo(Dir dir, int dist, int rounds, Pos dest) : dir(dir), dist(dir), dest(dest) {}
+        PathInfo(D dir, int dist, int rounds, Pos dest) : dir(dir), dist(dir), dest(dest) {}
         PathInfo() : dist(-1) {}
 
         bool found() { // Returns whether a path was found
@@ -383,9 +386,9 @@ struct PLAYER_NAME : public Player {
 
     // TODO: Take in account that distances for cars are different when they are on a road
     PathInfo bfs(
-            const Pos& initial,
-            const function<bool(const Pos&)>& can_go,
-            const function<bool(const Pos&)>& is_dest,
+            P initial,
+            const function<bool(P)>& can_go,
+            const function<bool(P)>& is_dest,
             int max_dist = INT_MAX,
             bool first_allowed = false)
     {
@@ -394,7 +397,7 @@ struct PLAYER_NAME : public Player {
         queue<PathInfo> queue;
         VVB seen(rows(), VB(cols(), false)); seen[initial.i][initial.j] = true;
 
-        for (const Dir& dir : dirs) {
+        for (D dir : dirs) {
             Pos dest = initial + dir;
 
             if (can_go(dest) and not is_taken(dest)) {
@@ -407,7 +410,7 @@ struct PLAYER_NAME : public Player {
             PathInfo pathInfoOrigin = queue.front();
             queue.pop();
 
-            for (const Dir& dir : dirs) {
+            for (D dir : dirs) {
                 Pos dest = pathInfoOrigin.dest + dir;
 
                 if (can_go(dest) and not seen[dest.i][dest.j]) {
@@ -427,8 +430,8 @@ struct PLAYER_NAME : public Player {
 
     PathInfo bfs(
             const Unit& unit,
-            const function<bool(const Pos&)>& can_go,
-            const function<bool(const Pos&)>& is_dest,
+            const function<bool(P)>& can_go,
+            const function<bool(P)>& is_dest,
             int max_dist = INT_MAX,
             bool first_allowed = false)
     {
@@ -437,20 +440,20 @@ struct PLAYER_NAME : public Player {
 
     PathInfo bfs(
             const Unit& unit,
-            const function<bool(const Pos&)>& is_dest,
+            const function<bool(P)>& is_dest,
             Safety safety,
             int max_dist = INT_MAX,
             bool first_allowed = false)
     {
-        return bfs(unit, [&unit, this, safety](const Pos& pos) { return can_move_to(unit, pos, safety); }, is_dest, max_dist, first_allowed);
+        return bfs(unit, [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); }, is_dest, max_dist, first_allowed);
     }
 
 
-    PathInfo bfs(const Unit& unit, const Pos& dest, Safety safety, int maxdist = INT_MAX) {
+    PathInfo bfs(const Unit& unit, P dest, Safety safety, int maxdist = INT_MAX) {
         return bfs(
                 unit.pos,
-                [&unit, this, safety](const Pos& pos) { return can_move_to(unit, pos, safety); },
-                [&dest](const Pos& pos) { return dest == pos; },
+                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
+                [&dest](P pos) { return dest == pos; },
                 maxdist
                 );
     }
@@ -465,38 +468,38 @@ struct PLAYER_NAME : public Player {
     {
         return bfs(
                 unit,
-                [&unit, this, safety](const Pos& pos) { return can_move_to(unit, pos, safety); },
-                [&unit, owner, type, this](const Pos& pos) { return is_on(pos, owner, type); },
+                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
+                [&unit, owner, type, this](P pos) { return is_on(pos, owner, type); },
                 max_dist,
                 first_allowed
         );
     }
 
     PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, CellType type, int maxdist = INT_MAX) {
-        function<bool(const Pos&)> is_dest;
+        function<bool(P)> is_dest;
 
-        if (adjacency == Adjacent) is_dest = [type, this](const Pos& pos) { return is_adjacent_to(pos, type); };
-        else is_dest = [type, this](const Pos& pos) { return is(pos, type); };
+        if (adjacency == Adjacent) is_dest = [type, this](P pos) { return is_adjacent_to(pos, type); };
+        else is_dest = [type, this](P pos) { return is(pos, type); };
 
 
         return bfs(
                 unit.pos,
-                [&unit, this, safety](const Pos& pos) { return can_move_to(unit, pos, safety); },
+                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest,
                 maxdist
         );
     }
 
     PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, Owner owner, int maxdist = INT_MAX) {
-        function<bool(const Pos&)> is_dest;
+        function<bool(P)> is_dest;
 
-        if (adjacency == Adjacent) is_dest = [owner, this](const Pos& pos) { return is_adjacent_to(pos, owner); };
-        else is_dest = [owner, this](const Pos& pos) { return is(pos, owner); };
+        if (adjacency == Adjacent) is_dest = [owner, this](P pos) { return is_adjacent_to(pos, owner); };
+        else is_dest = [owner, this](P pos) { return is(pos, owner); };
 
 
         return bfs(
                 unit.pos,
-                [&unit, this, safety](const Pos& pos) { return can_move_to(unit, pos, safety); },
+                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest,
                 maxdist
         );
@@ -578,7 +581,7 @@ struct PLAYER_NAME : public Player {
         int i = 0;
         VI permutation = random_permutation(8);
 
-        for (Dir& dir : dirs) dir = c_dirs[permutation[i++]];
+        for (D& dir : dirs) dir = c_dirs[permutation[i++]];
     }
 
 
