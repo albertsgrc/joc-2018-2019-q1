@@ -1,0 +1,12 @@
+#!/bin/bash
+
+VERSION=1_0_0
+
+AI_NAME=God
+
+FILE=AI$AI_NAME-$VERSION.cc
+
+cp AICancellara.cc $FILE
+
+sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' $FILE
+sed -i '' -- "s/\#define PLAYER_NAME Cancellara/\#define PLAYER_NAME $AI_NAME$VERSION/g" $FILE
