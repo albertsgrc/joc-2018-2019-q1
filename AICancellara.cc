@@ -13,8 +13,8 @@
 // ╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 
 
-#define ensure(condition, message) { if (not (condition)) { cerr << "ERROR: " << (message) << endl; assert(condition); } }
-
+//#define ensure(condition, message) { if (not (condition)) { cerr << "ERROR: " << (message) << endl; assert(condition); } }
+#define ensure(condition, message) {}
 // endregion
 
 
@@ -171,7 +171,7 @@ struct PLAYER_NAME : public Player {
 
         if (unit.type == Car and is_on(pos, Enemy, Car)) return false;
 
-        if (safety == Safe and is_on(pos, Enemy)) return false;
+        if (safety == Safe and is_adjacent_to(pos, Enemy)) return false;
 
 
         switch (unit.type) {
@@ -219,10 +219,9 @@ struct PLAYER_NAME : public Player {
         return is_adjacent_to(pos, [other_unit_id, this](P p) { return cell(p).id == other_unit_id; });
     }
 
-    inline bool is_adjacent_to(P pos, UnitType type) {
-        return is_adjacent_to(pos, [type, this](P p) {
-            Cell c = cell(p);
-            return c.id != -1 and unit(c.id).type == type;
+    inline bool is_adjacent_to(P pos, Owner owner, UnitType type) {
+        return is_adjacent_to(pos, [type, owner, this](P p) {
+            return is_on(p, owner, type);
         });
     }
 
@@ -317,6 +316,7 @@ struct PLAYER_NAME : public Player {
 
     // Call this method instead of command
     void action(int unit_id, D dir, float importance) {
+        ensure(dir_ok(dir), "try to add action with invalid dir");
         actions_queue.push(Action(unit_id, dir, importance));
     }
 
@@ -332,13 +332,12 @@ struct PLAYER_NAME : public Player {
         while (!actions_queue.empty()) {
             Action action = actions_queue.top(); actions_queue.pop();
 
-            ensure(dir_ok(action.dir), "try to process action with invalid dir");
-
             Pos destination = unit(action.unit_id).pos + action.dir;
 
+            // TODO: Make the exception for positions where there is an enemy with enough life to not die even if all demands attack him
             if (used_positions.insert(~destination).second) {
                 // Was not a used position, perform command
-                ensure(cell(destination).id == -1 or unit(cell(destination).id).player != me(), "attacking own unit!");
+                ensure(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me(), "attacking own unit!");
 
                 //cerr << "Unit " << action.unit_id << " to " << destination << endl;
                 command(action.unit_id, action.dir);
@@ -554,31 +553,47 @@ struct PLAYER_NAME : public Player {
     // ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝
 
     void compute_action_warrior(const Unit& warrior) {
-        cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
-        PathInfo water = bfs(warrior, Safe, Adjacent, Water);
+        //cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
 
-        PathInfo city = bfs(warrior, Safe, ExactlyThere, Anyone);
-        PathInfo enemy_city = bfs(warrior, Unsafe, ExactlyThere, Enemy);
         PathInfo enemy_warrior = bfs(warrior, Unsafe, Enemy, Warrior);
 
-        if (water.dist >= warrior.water - 7) {
-            cerr << "Warrior going for wateeeer" << endl;
+        if (enemy_warrior.found() and enemy_warrior.dist == 1 and unit(cell(enemy_warrior.dest).id).water <= warrior.water) {
+            action(warrior, enemy_warrior, 30);
+            return;
+        }
+
+        PathInfo water = bfs(warrior, Safe, Adjacent, Water);
+        if (water.found() and water.dist >= warrior.water - 5) {
+            //cerr << "Warrior going for wateeeer" << endl;
             action(warrior, water, 5);
+            return;
         }
-        else if (enemy_warrior.found() and warrior.water > unit_pos(enemy_warrior.dest).water and random(0.5)) {
-            cerr << "Warrior going for enemy" << endl;
-            action(warrior, enemy_warrior, 2);
+
+        PathInfo enemy_city = bfs(warrior, Unsafe, ExactlyThere, Enemy);
+        if (enemy_city.found() and warrior.water > 25 and not is(warrior.pos, Own)) {
+            //cerr << "Warrior going for enemy city" << endl;
+            action(warrior, enemy_city, 1);
+            return;
         }
-        else if (warrior.water > 40 and enemy_city.found()){
-            cerr << "Warrior going for enemy city" << endl;
-            action(warrior, enemy_city, (float(round())/nb_rounds())*10);
+
+        PathInfo city = bfs(warrior, Safe, ExactlyThere, Anyone);
+        if (city.found() and city.dist >= warrior.food - 3) {
+            action(warrior, city, 5);
+            return;
         }
-        else if (city.found()) {
-            action(warrior, city, 3);
+
+        PathInfo own_city = bfs(warrior, Safe, ExactlyThere, Own);
+        if (own_city.found()) {
+            action(warrior, own_city, 2);
+            return;
         }
-        else {
+
+        if (water.found()) {
             action(warrior, water, 1);
+            return;
         }
+
+        action(warrior, None, 20);
     }
 
     void compute_action_car(const Unit& car) {
@@ -586,11 +601,14 @@ struct PLAYER_NAME : public Player {
 
         PathInfo station = bfs(car, Safe, Adjacent, Station);
         PathInfo enemy_warrior = bfs(car, Unsafe, Enemy, Warrior);
+        PathInfo own_city = bfs(car, Safe, Adjacent, Own);
         PathInfo enemy_city = bfs(car, Unsafe, Adjacent, Enemy);
 
         if (station.dist >= car.food) action(car, station, 3);
         else if (enemy_warrior.found()) action(car, enemy_warrior, 2);
-        else action(car, enemy_city, 1);
+        else if (enemy_city.found()) action(car, enemy_city, 1);
+        else if (own_city.found()) action(car, enemy_city, 1);
+        else action(car, station, 3);
     }
 
 
