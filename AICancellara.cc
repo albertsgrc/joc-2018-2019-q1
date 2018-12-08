@@ -53,7 +53,7 @@ struct PLAYER_NAME : public Player {
         return new PLAYER_NAME;
     }
 
-    // region enumsdd
+    // region enums
     // ███████╗███╗   ██╗██╗   ██╗███╗   ███╗███████╗
     // ██╔════╝████╗  ██║██║   ██║████╗ ████║██╔════╝
     // █████╗  ██╔██╗ ██║██║   ██║██╔████╔██║███████╗
@@ -389,10 +389,10 @@ struct PLAYER_NAME : public Player {
     struct PathInfo {
         D dir; // Direction where you need to go
         int dist; // Distance to get to the destination
-        int rounds; // Rounds to get to the destination
+        int dist_next_left; // Rounds left to get to the next node
         Pos dest; // not useful
 
-        PathInfo(D dir, int dist, int rounds, Pos dest) : dir(dir), dist(dir), dest(dest) {}
+        PathInfo(D dir, int dist, int dist_next_left, Pos dest) : dir(dir), dist(dir), dist_next_left(dist_next_left), dest(dest) {}
         PathInfo() : dist(-1) {}
 
         bool found() { // Returns whether a path was found
@@ -400,11 +400,12 @@ struct PLAYER_NAME : public Player {
         }
     };
 
-    // TODO: Take in account that distances for cars are different when they are on a road
+    // This should never be called
     PathInfo bfs(
             P initial,
             const function<bool(P)>& can_go,
             const function<bool(P)>& is_dest,
+            const function<int(P, int)>& dist,
             int max_dist = INT_MAX,
             bool first_allowed = false)
     {
@@ -413,12 +414,13 @@ struct PLAYER_NAME : public Player {
         queue<PathInfo> queue;
         VVB seen(rows(), VB(cols(), false)); seen[initial.i][initial.j] = true;
 
+        int dist_initial_left = dist(initial, 0);
         for (D dir : dirs) {
             Pos dest = initial + dir;
 
             if (can_go(dest) and not is_taken(dest)) {
                 seen[dest.i][dest.j] = true;
-                queue.push(PathInfo(dir, 1, 1, dest));
+                queue.push(PathInfo(dir, dist_initial_left, dist_initial_left, dest));
             }
         }
 
@@ -426,14 +428,22 @@ struct PLAYER_NAME : public Player {
             PathInfo pathInfoOrigin = queue.front();
             queue.pop();
 
+            if (--pathInfoOrigin.dist_next_left > 0) {
+                queue.push(pathInfoOrigin);
+                continue;
+            }
+
             for (D dir : dirs) {
                 Pos dest = pathInfoOrigin.dest + dir;
 
                 if (can_go(dest) and not seen[dest.i][dest.j]) {
                     seen[dest.i][dest.j] = true;
 
-                    if (pathInfoOrigin.dist + 1 <= max_dist) {
-                        queue.push(PathInfo(pathInfoOrigin.dir, pathInfoOrigin.dist + 1, 1, dest));
+                    int dist_next = dist(pathInfoOrigin.dest, pathInfoOrigin.dist);
+                    int total_dist = pathInfoOrigin.dist + dist_next;
+
+                    if (total_dist <= max_dist) {
+                        queue.push(PathInfo(pathInfoOrigin.dir, total_dist, dist_next, dest));
                     }
                 }
             }
@@ -451,7 +461,18 @@ struct PLAYER_NAME : public Player {
             int max_dist = INT_MAX,
             bool first_allowed = false)
     {
-        return bfs(unit.pos, can_go, is_dest, max_dist, first_allowed);
+        if (unit.type == Warrior) return bfs(unit.pos, can_go, is_dest, [](P pos, int distance_travelled) { return 1; }, max_dist, first_allowed);
+        else return
+            bfs(
+                unit.pos,
+                can_go,
+                is_dest,
+                [&unit, this](P pos, int distance_travelled) {
+                    return is(pos, Road) and (unit.food - distance_travelled > 0) ? 1 : 4;
+                },
+                max_dist,
+                first_allowed
+            );
     }
 
     PathInfo bfs(
@@ -467,7 +488,7 @@ struct PLAYER_NAME : public Player {
 
     PathInfo bfs(const Unit& unit, P dest, Safety safety, int maxdist = INT_MAX) {
         return bfs(
-                unit.pos,
+                unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 [&dest](P pos) { return dest == pos; },
                 maxdist
@@ -499,7 +520,7 @@ struct PLAYER_NAME : public Player {
 
 
         return bfs(
-                unit.pos,
+                unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest,
                 maxdist
@@ -514,7 +535,7 @@ struct PLAYER_NAME : public Player {
 
 
         return bfs(
-                unit.pos,
+                unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest,
                 maxdist
