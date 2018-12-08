@@ -1,35 +1,20 @@
 #include <cassert>
 #include <list>
-
 #include "Player.hh"
 
-
-/**
- * Write the name of your player and save this file
- * with the same name and .cc extension.
- */
 #define PLAYER_NAME Cancellara
 
 #define ensure(condition, message) { if (not (condition)) { cerr << "ERROR: " << (message) << endl; assert(condition); } }
 
-// DISCLAIMER: The following Demo player is *not* meant to do anything
-// sensible. It is provided just to illustrate how to use the API.
-// Please use AINull.cc as a template for your player.
-
 typedef const Pos& P;
 typedef Dir D;
 
-// Returns a position identifier
 inline int operator~(P pos) {
     return pos.i*60 + pos.j;
 }
 
 struct PLAYER_NAME : public Player {
 
-    /**
-     * Factory: returns a new instance of this class.
-     * Do not modify this function.
-     */
     static Player *factory() {
         return new PLAYER_NAME;
     }
@@ -78,8 +63,6 @@ struct PLAYER_NAME : public Player {
 //    ██║  ██║███████╗███████╗██║     ███████╗██║  ██║███████║
 //    ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝
 
-
-
     template <class C, class K>
     auto in_impl(C const& c, K const& key, int )
     -> decltype(c.find(key), true) {
@@ -122,7 +105,6 @@ struct PLAYER_NAME : public Player {
 //    ╚██████╗██║  ██║██║ ╚████║    ██║ ╚═╝ ██║╚██████╔╝ ╚████╔╝ ███████╗  ██╗
 //    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚══════╝  ╚═╝
 
-
     inline bool can_warriors_move() {
         return round() % 4 == me();
     }
@@ -160,7 +142,6 @@ struct PLAYER_NAME : public Player {
 //    ██╔═══╝ ██║   ██║╚════██║    ██║██║╚██╗██║██╔══╝  ██║   ██║
 //    ██║     ╚██████╔╝███████║    ██║██║ ╚████║██║     ╚██████╔╝
 //    ╚═╝      ╚═════╝ ╚══════╝    ╚═╝╚═╝  ╚═══╝╚═╝      ╚═════╝
-
 
     // Adjacency
 
@@ -234,21 +215,6 @@ struct PLAYER_NAME : public Player {
         return false;
     }
 
-    // Same as has_unit
-
-    inline bool is_on(P pos, UnitType type) {
-        return has_unit(pos, type);
-    }
-
-    // Is a given unit on any of the following cell types?
-
-    inline bool is_on(const Unit& unit, CellType type) {
-        return is(unit.pos, type);
-    }
-
-    inline bool is_on_any(const Unit& unit, initializer_list<CellType> list) {
-        return is_any(unit.pos, list);
-    }
 
     inline bool is_on(P pos, Owner owner, UnitType type = UnitTypeSize) {
         bool has = has_unit(pos, type);
@@ -280,8 +246,6 @@ struct PLAYER_NAME : public Player {
 //    ██║     ██║   ██║██║╚██╔╝██║██║╚██╔╝██║██╔══██║██║╚██╗██║██║  ██║    ██║     ██║   ██║██║╚██╗██║   ██║   ██╔══██╗██║   ██║██║
 //    ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║██║  ██║██║ ╚████║██████╔╝    ╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║  ██║╚██████╔╝███████╗
 //    ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-
-
 
     struct Action {
         int unit_id;
@@ -331,7 +295,7 @@ struct PLAYER_NAME : public Player {
         }
     }
 
-    void inactive_round(const Unit& unit) {
+    void set_inactive_round(const Unit &unit) {
         units_to_command.erase(unit.id);
     }
 
@@ -349,8 +313,6 @@ struct PLAYER_NAME : public Player {
 //    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
 
-
-
     typedef vector<int> VI;
     typedef vector<bool> VB;
     typedef vector<VB> VVB;
@@ -366,7 +328,6 @@ struct PLAYER_NAME : public Player {
 //    ██╔═══╝ ██╔══██║   ██║   ██╔══██║██╔══╝  ██║██║╚██╗██║██║  ██║██║██║╚██╗██║██║   ██║
 //    ██║     ██║  ██║   ██║   ██║  ██║██║     ██║██║ ╚████║██████╔╝██║██║ ╚████║╚██████╔╝
 //    ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═══╝╚═════╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
-
 
     // This data structure holds the result of a pathfinding call
 
@@ -514,8 +475,6 @@ struct PLAYER_NAME : public Player {
 //    ██║  ██║███████╗██║  ██║███████╗    ███████║██║  ██║██║   ██║
 //    ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝
 
-
-
     void compute_action_warrior(const Unit& warrior) {
         cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
         PathInfo water = bfs(warrior, Safe, Adjacent, Water);
@@ -543,7 +502,7 @@ struct PLAYER_NAME : public Player {
     }
 
     void compute_action_car(const Unit& car) {
-        if (not can_move(car.id)) return inactive_round(car);
+        if (not can_move(car.id)) return set_inactive_round(car);
 
         PathInfo station = bfs(car, Safe, Adjacent, Station);
         PathInfo enemy_warrior = bfs(car, Unsafe, Enemy, Warrior);
@@ -573,7 +532,6 @@ struct PLAYER_NAME : public Player {
 //    ██╔══██╗██║   ██║██║   ██║██║╚██╗██║██║  ██║    ██║██║╚██╗██║██║   ██║
 //    ██║  ██║╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝    ██║██║ ╚████║██║   ██║
 //    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝     ╚═╝╚═╝  ╚═══╝╚═╝   ╚═╝
-
 
     // Shuffles the directions array
     // I don't remember why but this produces better warrior/car movements overall
@@ -610,8 +568,6 @@ struct PLAYER_NAME : public Player {
 //    ██║     ███████╗██║  ██║   ██║
 //    ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝
 
-
-
     void play() {
         //if (round() == 0)
 
@@ -631,8 +587,4 @@ struct PLAYER_NAME : public Player {
     }
 };
 
-
-/**
- * Do not modify the following line.
- */
 RegisterPlayer(PLAYER_NAME);
