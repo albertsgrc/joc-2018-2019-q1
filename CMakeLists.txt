@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 project(joc_2018_2019_q1)
 
 set(CMAKE_CXX_STANDARD 11)
-#set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -DDEBUG -g -pg -rdynamic")
-set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -Ofast -march=native")
+set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -DDEBUG -D_GLIBCXX_DEBUG -g")
+#set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -O0 -g")
 
 include_directories(.)
 

@@ -2,6 +2,7 @@
 #include <list>
 #include <climits>
 #include <functional>
+#include <cstring>
 #include "Player.hh"
 
 #define PLAYER_NAME Cancellara
@@ -22,6 +23,8 @@
     #define ensure(condition, message) {}
 #endif
 
+#define cinfo (*this)
+
 // endregion
 
 
@@ -33,11 +36,54 @@
 //   ██║      ██║   ██║     ███████╗██████╔╝███████╗██║     ███████║
 //   ╚═╝      ╚═╝   ╚═╝     ╚══════╝╚═════╝ ╚══════╝╚═╝     ╚══════╝
 
-typedef const Pos& P;
-typedef Dir D;
 
 typedef unsigned short number;
 typedef unsigned char snumber;
+
+struct Direction {
+    char i, j;
+
+    Direction() : i(0), j(0) {}
+    Direction(int i, int j) : i(i), j(j) {}
+
+    Direction(const Direction& o) : i(o.i), j(o.j) {}
+
+    explicit operator Dir() const {
+        switch(i) {
+            case -1:
+                switch(j) {
+                    case -1: return TL;
+                    case 0: return Top;
+                    case 1: return RT;
+                }
+            case 0:
+                switch(j) {
+                    case -1: return Left;
+                    case 0: return None;
+                    case 1: return Right;
+                }
+            case 1:
+                switch(j) {
+                    case -1: return LB;
+                    case 0: return Bottom;
+                    case 1: return BR;
+                }
+        }
+
+        _unreachable();
+    }
+
+    inline Pos operator+(const Pos& pos) {
+        return {pos.i + i, pos.j + j};
+    }
+};
+
+inline Pos operator+(const Pos& pos, const Direction& dir) {
+    return {pos.i + dir.i, pos.j + dir.j};
+}
+
+typedef const Pos& P;
+typedef const Direction& D;
 
 // endregion
 
@@ -54,6 +100,7 @@ typedef unsigned char snumber;
 inline number operator~(P pos) {
     return pos.i*60 + pos.j;
 }
+
 
 // endregion
 
@@ -100,13 +147,14 @@ struct PLAYER_NAME : public Player {
     // ██████╔╝██║██║  ██║███████╗╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
     // ╚═════╝ ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
+
     // Do not use this array
-    const D c_dirs[8] = {
-        Bottom, BR, Right, RT, Top, TL, Left, LB
+    const Direction c_dirs[8] = {
+        {1,0}, {1,1}, {0,1}, {-1,1}, {-1,0}, {-1,-1},{0,-1},{1,-1}
     };
 
     // We iterate this array to find possible movements from a given position
-    D dirs[8];
+    Direction dirs[8];
 
     //endregion
 
@@ -162,8 +210,16 @@ struct PLAYER_NAME : public Player {
     // ╚██████╗██║  ██║██║ ╚████║    ██║ ╚═╝ ██║╚██████╔╝ ╚████╔╝ ███████╗  ██╗
     //  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚══════╝  ╚═╝
 
+    inline bool pos_ok(const Pos& pos) {
+        return (pos.i >= 0) & (pos.j >= 0) & (pos.i < 60) & (pos.j < 60);
+    }
+
     inline bool can_warriors_move() {
         return round() % 4 == me();
+    }
+
+    inline bool can_move_to_simple_warrior(P pos) {
+        return pos_ok(pos) && (cell_type[pos.i][pos.j] <= City);
     }
 
     // Assumes round()%4 == me()
@@ -178,7 +234,7 @@ struct PLAYER_NAME : public Player {
 
         if (is_on(pos, Own)) return false;
 
-        if (unit.type == Car and is_on(pos, Enemy, Car)) return false;
+        if (unit.type == Car and (is_on(pos, Enemy, Car) or is_adjacent_to(pos, Enemy, Car))) return false;
 
         if (safety == Safe and is_adjacent_to(pos, Enemy)) return false;
 
@@ -204,7 +260,7 @@ struct PLAYER_NAME : public Player {
     // Adjacency
 
     inline bool is_adjacent_to(P pos, const function<bool(P)>& evaluator) {
-        for (const D& d : dirs) {
+        for (D d : dirs) {
             Pos dest = pos + d;
             if (pos_ok(dest) and evaluator(dest)) return true;
         }
@@ -248,7 +304,7 @@ struct PLAYER_NAME : public Player {
     // Is it of a given cell type?
 
     inline bool is(P pos, CellType cellType) {
-        return cell(pos).type == cellType;
+        return cell_type[pos.i][pos.j] == cellType;
     }
 
     // Is it a city of a given owner?
@@ -309,10 +365,10 @@ struct PLAYER_NAME : public Player {
 
     struct Action {
         snumber unit_id;
-        D dir;
+        Dir dir;
         float importance;
 
-        Action(snumber unit_id, D dir, float importance) : unit_id(unit_id), dir(dir), importance(importance) {}
+        Action(snumber unit_id, Dir dir, float importance) : unit_id(unit_id), dir(dir), importance(importance) {}
 
         bool operator<(const Action& other) const {
             return importance < other.importance;
@@ -324,17 +380,17 @@ struct PLAYER_NAME : public Player {
     set<number> used_positions;
 
     // Call this method instead of command
-    void action(snumber unit_id, D dir, float importance) {
+    void action(snumber unit_id, Dir dir, float importance) {
         ensure(dir_ok(dir), "try to add action with invalid dir");
         actions_queue.push(Action(unit_id, dir, importance));
     }
 
-    void action(const Unit& unit, D dir, float importance) {
+    void action(const Unit& unit, Dir dir, float importance) {
         action(unit.id, dir, importance);
     }
 
     void action(const Unit& unit, const PathInfo& info, float importance) {
-        action(unit.id, info.dir, importance);
+        action(unit.id, Dir(info.dir), importance);
     }
 
     void process_actions() {
@@ -392,14 +448,17 @@ struct PLAYER_NAME : public Player {
     // ██║     ██║  ██║   ██║   ██║  ██║██║     ██║██║ ╚████║██████╔╝██║██║ ╚████║╚██████╔╝
     // ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═══╝╚═════╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
 
+    bool seen[60][60];
+    unsigned int cost_m[60][60];
+
     // This data structure holds the result of a pathfinding call
 
     struct PathInfo {
-        D dir; // Direction where you need to go
+        Direction dir; // Direction where you need to go
         number dist; // Distance to get to the destination
         Pos dest; // not useful
 
-        PathInfo(D dir, number dist, Pos dest) : dir(dir), dist(dir), dest(dest) {}
+        PathInfo(D dir, number dist, Pos dest) : dir(dir), dist(dist), dest(dest) {}
         PathInfo() : dist(USHRT_MAX) {}
 
         bool found() { // Returns whether a path was found
@@ -423,10 +482,10 @@ struct PLAYER_NAME : public Player {
             number max_dist = USHRT_MAX,
             bool first_allowed = false)
     {
-        if (is_dest(initial) and first_allowed) return { None, 0, 0, initial };
+        if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, initial };
 
         queue<BFSPathInfo> queue;
-        VVB seen(rows(), VB(cols(), false)); seen[initial.i][initial.j] = true;
+        memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
 
         number dist_initial_left = dist(initial, 0);
         for (D dir : dirs) {
@@ -520,7 +579,7 @@ struct PLAYER_NAME : public Player {
         return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                [&unit, owner, type, this](P pos) { return is_on(pos, owner, type); },
+                [owner, type, this](P pos) { return is_on(pos, owner, type); },
                 max_dist,
                 first_allowed
         );
@@ -554,6 +613,78 @@ struct PLAYER_NAME : public Player {
                 is_dest,
                 maxdist
         );
+    }
+
+
+    struct WSPPathInfo: public PathInfo {
+        unsigned int cost;
+
+        WSPPathInfo(D dir, number dist, unsigned int cost, Pos dest) : PathInfo(dir, dist, dest), cost(cost) {}
+        WSPPathInfo() : PathInfo() {}
+
+        bool operator>(const WSPPathInfo& other) const {
+            return cost > other.cost;
+        }
+    };
+
+    WSPPathInfo wsp(
+            P initial,
+            const function<bool(P)>& can_go,
+            const function<bool(P)>& is_dest,
+            const function<number(P, number)>& dist,
+            const function<number(P)>& cost,
+            number max_dist = USHRT_MAX,
+            bool first_allowed = false)
+    {
+        if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, initial };
+
+        priority_queue<WSPPathInfo, vector<WSPPathInfo>, greater<WSPPathInfo>> queue;
+
+        memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
+        memset(cost_m, INT_MAX, sizeof cost_m);
+
+        number dist_initial_left = dist(initial, 0);
+        for (D dir : dirs) {
+            Pos dest = initial + dir;
+
+            if (can_go(dest) and not is_taken(dest)) {
+                cost_m[dest.i][dest.j] = cost(dest);
+                queue.push(WSPPathInfo(dir, dist_initial_left, cost_m[dest.i][dest.j], dest));
+            }
+        }
+
+        while (not queue.empty() and not is_dest(queue.top().dest)) {
+            WSPPathInfo pathInfoOrigin = queue.top();
+            queue.pop();
+
+            P from = pathInfoOrigin.dest;
+
+            if (not seen[from.i][from.j]) {
+                seen[from.i][from.j] = true;
+
+                for (D dir : dirs) {
+                    Pos dest = pathInfoOrigin.dest + dir;
+
+                    unsigned int cost_dest = cost(dest);
+                    unsigned int new_cost = cost_m[from.i][from.j] + cost_dest;
+
+                    if (can_go(dest) and new_cost < cost_m[dest.i][dest.j]) {
+                        cost_m[dest.i][dest.j] = new_cost;
+                        seen[dest.i][dest.j] = true;
+
+                        number dist_next = dist(pathInfoOrigin.dest, pathInfoOrigin.dist);
+                        number total_dist = pathInfoOrigin.dist + dist_next;
+
+                        if (total_dist <= max_dist) {
+                            queue.push(WSPPathInfo(pathInfoOrigin.dir, total_dist, new_cost, dest));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (not queue.empty()) return queue.top();
+        else return {};
     }
 
     // endregion
@@ -615,7 +746,7 @@ struct PLAYER_NAME : public Player {
     void compute_action_car(const Unit& car) {
         if (not can_move(car.id)) return set_inactive_round(car);
 
-        PathInfo station = bfs(car, Safe, Adjacent, Station);
+        PathInfo station = bfs(car, Unsafe, Adjacent, Station);
 
         if (station.dist >= car.food) return action(car, station, 3);
 
@@ -627,7 +758,7 @@ struct PLAYER_NAME : public Player {
 
         if (enemy_city.found()) return action(car, enemy_city, 1);
 
-        PathInfo own_city = bfs(car, Safe, Adjacent, Own);
+        PathInfo own_city = bfs(car, Unsafe, Adjacent, Own);
 
         if (own_city.found()) return action(car, own_city, 1);
 
@@ -662,7 +793,7 @@ struct PLAYER_NAME : public Player {
         number i = 0;
         VI permutation = random_permutation(8);
 
-        for (D& dir : dirs) dir = c_dirs[permutation[i++]];
+        for (Direction& dir : dirs) dir = c_dirs[permutation[i++]];
     }
 
 
@@ -683,60 +814,157 @@ struct PLAYER_NAME : public Player {
     // ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝       ╚═╝╚═╝  ╚═══╝╚═╝   ╚═╝
 
     struct CityInfo {
-        vector<Cell> cells;
+        vector<Pos> pos;
     };
 
+    CityInfo city_info[8];
+
     struct CellInfo {
+        snumber city_id;
+
         PathInfo water;
         PathInfo city;
         PathInfo station;
         PathInfo road;
 
-        PathInfo to[60];
+        PathInfo cities[8];
+
+        PathInfo to[60][60];
+
+        PathInfo& operator[](P pos) {
+            return to[pos.i][pos.j];
+        }
     };
+
+    CellInfo& operator[](P pos) {
+        return cell_info[pos.i][pos.j];
+    }
 
 
     CellInfo cell_info[60][60];
+    CellType cell_type[60][60];
 
     // Called only on the first round to perform some initialization
-    void first_init() {
-        /*
+
+    void check_and_add_proximities(P orig, P dest, const PathInfo& to) {
+        CellInfo& cellinfo = cinfo[orig];
+
+        cellinfo[dest] = to;
+
+        if (is(dest, Water)) {
+            if (not cellinfo.water.found()) cellinfo.water = to;
+        }
+        else if (is(dest, City)) {
+            if (not cellinfo.city.found()) cellinfo.city = to;
+
+            if (not cellinfo.cities[cellinfo.city_id].found()) cellinfo.cities[cellinfo.city_id] = to;
+        }
+        else if (is(dest, Station)) {
+            if (not cellinfo.station.found()) cellinfo.station = to;
+        }
+        else if (is(dest, Road)) {
+            if (not cellinfo.road.found()) cellinfo.road = to;
+        }
+    }
+
+    void init_cellinfo() {
         for (number i = 0; i < rows(); ++i) {
+            for (number j = 0; j < cols(); ++j) {
+                memset(seen, 0, sizeof seen);
 
-            distances[i][i] = 0;
-            n_intersections[i][i] = 0;
-            const Position& start = s.valid_positions[i];
+                P initial = Pos(i, j);
+                queue<PathInfo> queue;
 
-            queue<PathStepMagic> Q;
-            SeenMatrix::reset();
-            vector<vector<bool>>& S = SeenMatrix::S;
-            S[start.i][start.j] = true;
+                for (D dir : dirs) {
+                    P dest = initial + dir;
 
-            for (char j : dirs(start)) {
-                Position dest = start.move_destination(Direction::LIST[(int)j]);
+                    if (can_move_to_simple_warrior(dest)) {
+                        seen[dest.i][dest.j] = true;
+                        PathInfo to(dir, 1, dest);
+                        queue.push(to);
 
-                Q.push(PathStepMagic(dest, j, 1, is_intersection(dest)));
-                S[dest.i][dest.j] = true;
+                        check_and_add_proximities(initial, dest, to);
+                    }
+                }
+
+                while (not queue.empty()) {
+                    PathInfo pathInfoOrigin = queue.front();
+                    queue.pop();
+
+                    for (D dir : dirs) {
+                        Pos dest = pathInfoOrigin.dest + dir;
+
+                        if (can_move_to_simple_warrior(dest) and not seen[dest.i][dest.j]) {
+                            seen[dest.i][dest.j] = true;
+
+                            PathInfo to(pathInfoOrigin.dir, pathInfoOrigin.dist + 1, dest);
+
+                            queue.push(to);
+
+                            check_and_add_proximities(initial, dest, to);
+                        }
+                    }
+                }
             }
+        }
+    }
 
-            while (not Q.empty()) {
-                PathStepMagic current = Q.front(); Q.pop();
-                int index_from = index_from_pos[current.pos.i][current.pos.j];
-                distances[i][index_from] = current.dist;
-                n_intersections[i][index_from] = current.n_intersections;
+    void init_cityinfo() {
+        memset(seen, false, sizeof seen);
+        queue<Pos> queue;
 
-                s.max_dist = max(s.max_dist, current.dist);
-                direction_from_to[i][index_from_pos[current.pos.i][current.pos.j]] = current.dir;
+        int id = 0;
 
-                for (char j : dirs(current.pos)) {
-                    Position dest = current.pos.move_destination(Direction::LIST[(int) j]);
+        for (number i = 0; i < rows(); ++i) {
+            for (number j = 0; j < rows(); ++j) {
+                if (not seen[i][j]) {
+                    Pos initial(i, j);
 
-                    if (not S[dest.i][dest.j]) {
-                        Q.push(PathStepMagic(dest, current.dir, current.dist + 1, current.n_intersections + is_intersection(dest)));
-                        S[dest.i][dest.j] = true;
-                    }   }   }   }
+                    seen[i][j] = true;
 
-        }*/
+                    if (not is(initial, City)) {
+                        cinfo[initial].city_id = nb_cities();
+                    }
+                    else {
+                        queue.push(initial);
+
+                        city_info[id].pos = vector<Pos>();
+
+                        while (not queue.empty()) {
+                            P from = queue.front();
+                            queue.pop();
+
+                            cinfo[from].city_id = id;
+                            city_info[id].pos.push_back(from);
+
+                            for (D dir : dirs) {
+                                P dest = from + dir;
+
+                                if (not seen[dest.i][dest.j]) {
+                                    seen[dest.i][dest.j] = true;
+
+                                    if (is(dest, City)) queue.push(dest);
+                                    else cinfo[dest].city_id = nb_cities();
+                                }
+                            }
+                        }
+
+                        ++id;
+                    }
+                }
+            }
+        }
+    }
+
+    void init_celltype() {
+        for (number i = 0; i < rows(); ++i)
+            for (number j = 0; j < cols(); ++j) cell_type[i][j] = cell(i, j).type;
+    }
+
+    void first_init() {
+        init_celltype();
+        //init_cityinfo();
+        //init_cellinfo();
     }
 
     // endregion
@@ -751,11 +979,11 @@ struct PLAYER_NAME : public Player {
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝
 
     void play() {
+        shuffle_dirs();
+
         if (round() == 0) first_init();
 
         get_my_units();
-
-        shuffle_dirs();
 
         used_positions.clear();
 
