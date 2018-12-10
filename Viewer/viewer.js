@@ -33,7 +33,7 @@ var cell_colors = {
   '0': "#ef9a9a",
   '1': "#9fa8da",
   '2': "#a5d6a7",
-  '3': "#ffe082",
+  '3': "#fff3b5",
   'X': "#4a4b4e",
   'R': "#000000",
   'S': "#FF8000",
@@ -46,7 +46,7 @@ var player_colors = {
   0: "#ff1744",
   1: "#3d5afe",
   2: "#558b2f",
-  3: "#ff3d00"
+  3: "#ffb90a"
 }
 
 
@@ -433,7 +433,7 @@ function drawStation (i, j, col) {
 
 
 function drawCar (i, j, u, c) {
-  var size = unitSize * tileSize * 0.6 + 10;
+  var size = unitSize * tileSize * 0.6 +6;
   var offset = (tileSize - size) / 2;
   context.beginPath();
   context.arc(j*tileSize + size/2 + offset, i*tileSize + size/2 + offset, size/2, 0, Math.PI*2, false);
@@ -448,7 +448,7 @@ function drawCar (i, j, u, c) {
   context.lineTo(j*tileSize + offset - 0.4*size, i*tileSize + offset + 1.4*size);
   context.stroke();
   context.beginPath();
-  context.strokeStyle = c[i] && c[i][j] == 'R' ? "#aeaeae" : "black";
+  context.strokeStyle = c[i] && c[i][j+1] ? c[i][j+1] == 'R' ? "#aeaeae" : "black" : "#aeaeae" ;
   context.lineWidth = 1
   context.font = "12px Verdana"
   context.strokeText(u.food, j*tileSize + size/2 + offset + 10, i*tileSize + size/2 + offset)
@@ -464,10 +464,16 @@ function drawWarrior (i, j, u, c) {
   context.fill();
   context.stroke();
   context.beginPath();
-  context.strokeStyle = c[i] && c[i][j] == 'R' ? "grey" : "black";
+  context.strokeStyle = c[i] && c[i][j+1] ? c[i][j+1] == 'R' ? "#aeaeae" : "black" : "#aeaeae" ;
   context.font = "12px Verdana"
   context.lineWidth = 1
-  context.strokeText(u.food, j*tileSize + size/2 + offset + 10, i*tileSize + size/2 + offset)
+  context.strokeText(u.food, j*tileSize + size/2 + offset + 10, i*tileSize + size/2 + offset - 5)
+  context.stroke();
+  context.beginPath();
+  context.strokeStyle = c[i] && c[i][j+1] ? c[i][j+1] == 'R' ? "#aeaeae" : "black" : "#aeaeae" ;
+  context.font = "12px Verdana"
+  context.lineWidth = 1
+  context.strokeText(u.water, j*tileSize + size/2 + offset + 10, i*tileSize + size/2 + offset + 10)
   context.stroke();
 }
 
