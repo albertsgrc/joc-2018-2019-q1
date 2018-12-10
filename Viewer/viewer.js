@@ -30,23 +30,23 @@ var grid_color = "#000000";
 
 
 var cell_colors = {
-  '0': "#FF8080",
-  '1': "#70FF70",
-  '2': "#60A8FF",
-  '3': "#C0A0FF",
-  'X': "#696B6F",
+  '0': "#ef9a9a",
+  '1': "#9fa8da",
+  '2': "#a5d6a7",
+  '3': "#ffe082",
+  'X': "#4a4b4e",
   'R': "#000000",
   'S': "#FF8000",
-  'W': "#33FFFF",
-  '.': "#FFEBC8"
+  'W': "#32b7ff",
+  '.': "#727872"
 }
 
 
 var player_colors = {
-  0: "#FF0000",
-  1: "#00A000",
-  2: "#0050BB",
-  3: "#8000A0"
+  0: "#ff1744",
+  1: "#3d5afe",
+  2: "#558b2f",
+  3: "#ff3d00"
 }
 
 
@@ -245,6 +245,14 @@ function initGame (raw_data) {
 
   // Canvas element.
   canvas = document.getElementById('myCanvas');
+
+  canvas.addEventListener('click', function(event) {
+    var x = event.pageX - canvas.offsetLeft;
+    var y = event.pageY - canvas.offsetTop;
+
+
+  })
+
   context = canvas.getContext("2d");
 
   // Prepare the slider.
@@ -397,8 +405,8 @@ function drawGame () {
       }
     }
 
-    if (u.type == 'c') drawCar(i, j);
-    else drawWarrior(i, j);
+    if (u.type == 'c') drawCar(i, j, u, rows);
+    else drawWarrior(i, j, u, rows);
   }
 
   if (gameAnim && frames >= FRAMES_PER_ROUND/2) {
@@ -424,8 +432,8 @@ function drawStation (i, j, col) {
 }
 
 
-function drawCar (i, j) {
-  var size = unitSize * tileSize * 0.6;
+function drawCar (i, j, u, c) {
+  var size = unitSize * tileSize * 0.6 + 10;
   var offset = (tileSize - size) / 2;
   context.beginPath();
   context.arc(j*tileSize + size/2 + offset, i*tileSize + size/2 + offset, size/2, 0, Math.PI*2, false);
@@ -439,15 +447,27 @@ function drawCar (i, j) {
   context.moveTo(j*tileSize + offset + 1.4*size, i*tileSize + offset - 0.4*size);
   context.lineTo(j*tileSize + offset - 0.4*size, i*tileSize + offset + 1.4*size);
   context.stroke();
+  context.beginPath();
+  context.strokeStyle = c[i] && c[i][j] == 'R' ? "#aeaeae" : "black";
+  context.lineWidth = 1
+  context.font = "12px Verdana"
+  context.strokeText(u.food, j*tileSize + size/2 + offset + 10, i*tileSize + size/2 + offset)
+  context.stroke();
 }
 
 
-function drawWarrior (i, j) {
-  var size = unitSize * tileSize * 0.4;
+function drawWarrior (i, j, u, c) {
+  var size = unitSize * tileSize * 0.4 + (u.water/40)*10;
   var offset = (tileSize - size) / 2;
   context.beginPath();
-  context.arc(j*tileSize + size/2 + offset, i*tileSize + size/2 + offset, size/2, 0, Math.PI*2, false);
+  context.arc(j*tileSize + size/2 + offset, i*tileSize + size/2 + offset, size/2, 0, Math.PI*4, false);
   context.fill();
+  context.stroke();
+  context.beginPath();
+  context.strokeStyle = c[i] && c[i][j] == 'R' ? "grey" : "black";
+  context.font = "12px Verdana"
+  context.lineWidth = 1
+  context.strokeText(u.food, j*tileSize + size/2 + offset + 10, i*tileSize + size/2 + offset)
   context.stroke();
 }
 
