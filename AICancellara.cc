@@ -813,11 +813,15 @@ struct PLAYER_NAME : public Player {
     // ██║     ██║██║  ██║███████║   ██║       ██║██║ ╚████║██║   ██║
     // ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝       ╚═╝╚═╝  ╚═══╝╚═╝   ╚═╝
 
+    CellType cell_type[60][60];
+
+
     struct CityInfo {
         vector<Pos> pos;
     };
 
     CityInfo city_info[8];
+
 
     struct CellInfo {
         snumber city_id;
@@ -829,11 +833,11 @@ struct PLAYER_NAME : public Player {
 
         PathInfo cities[8];
 
-        PathInfo to[60][60];
+        //PathInfo to[60][60];
 
-        PathInfo& operator[](P pos) {
+        /*PathInfo& operator[](P pos) {
             return to[pos.i][pos.j];
-        }
+        }*/
     };
 
     CellInfo& operator[](P pos) {
@@ -842,14 +846,13 @@ struct PLAYER_NAME : public Player {
 
 
     CellInfo cell_info[60][60];
-    CellType cell_type[60][60];
+
+
 
     // Called only on the first round to perform some initialization
 
     void check_and_add_proximities(P orig, P dest, const PathInfo& to) {
         CellInfo& cellinfo = cinfo[orig];
-
-        cellinfo[dest] = to;
 
         if (is(dest, Water)) {
             if (not cellinfo.water.found()) cellinfo.water = to;
