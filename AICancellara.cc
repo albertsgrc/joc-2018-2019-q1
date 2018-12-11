@@ -3,6 +3,7 @@
 #include <climits>
 #include <functional>
 #include <cstring>
+#include <unordered_map>
 #include "Player.hh"
 
 #define PLAYER_NAME Cancellara
@@ -134,6 +135,10 @@ struct PLAYER_NAME : public Player {
         Adjacent, ExactlyThere
     };
 
+    enum Resource {
+        Drink, Fuel
+    };
+
     struct PathInfo;
 
     // endregion
@@ -222,6 +227,10 @@ struct PLAYER_NAME : public Player {
         return pos_ok(pos) && (cell_type[pos.i][pos.j] <= City);
     }
 
+    inline bool can_move_to_simple_car(P pos) {
+        return pos_ok(pos) && (cell_type[pos.i][pos.j] <= Road);
+    }
+
     // Assumes round()%4 == me()
     // Assumes pos is adjacent to id
     inline bool can_move_to(const Unit& unit, P pos, Safety safety, UseState useState = DoesntMatterTaken) {
@@ -230,7 +239,7 @@ struct PLAYER_NAME : public Player {
         //ensure(is_adjacent_to(unit, pos), "can_move_to with non-adjacent position");
         ensure((unit.type == Car and can_move(unit.id)) or (unit.type == Warrior and can_warriors_move()), "can_move_to for warrior on invalid round");
 
-        if (useState == NotTaken and is_taken(pos)) return false;
+        if (useState == NotTaken and not can_demand(unit, pos)) return false;
 
         if (is_on(pos, Own)) return false;
 
@@ -307,6 +316,11 @@ struct PLAYER_NAME : public Player {
         return cell_type[pos.i][pos.j] == cellType;
     }
 
+    inline bool has(P pos, Resource resource) {
+        if (resource == Drink) return cinfo[pos].gives_water;
+        else return cinfo[pos].gives_fuel;
+    }
+
     // Is it a city of a given owner?
 
     inline bool is(P pos, Owner owner) {
@@ -349,9 +363,24 @@ struct PLAYER_NAME : public Player {
         return Info::unit(c.id);
     }
 
-    inline bool is_taken(P pos) {
-        return in(used_positions, ~pos);
+    inline bool is_thunderdome(P pos1, P pos2) {
+        return pos1 != pos2 and is(pos1, City) and is(pos2, City);
     }
+
+    //endregion
+
+
+    // region unitinfo
+
+
+    inline snumber unit_life(const Unit& u) {
+        return min(u.food, u.water);
+    }
+
+    inline int rounds_to_move_car(const Unit& u, const Pos& pos, number distance_travelled, bool refueled = false) {
+        return is(pos, Road) and (refueled or (u.food - distance_travelled > 0)) ? 1 : 4;
+    }
+
     //endregion
 
 
@@ -377,7 +406,7 @@ struct PLAYER_NAME : public Player {
 
     priority_queue<Action> actions_queue;
     set<snumber> units_to_command;
-    set<number> used_positions;
+    unordered_map<number, snumber> used_positions;
 
     // Call this method instead of command
     void action(snumber unit_id, Dir dir, float importance) {
@@ -389,24 +418,45 @@ struct PLAYER_NAME : public Player {
         action(unit.id, dir, importance);
     }
 
+    void action(const Unit& unit, D dir, float importance) {
+        action(unit.id, Dir(dir), importance);
+    }
+
+
     void action(const Unit& unit, const PathInfo& info, float importance) {
         action(unit.id, Dir(info.dir), importance);
+    }
+
+    void action_command(const Action& action) {
+        command(action.unit_id, action.dir);
+        units_to_command.erase(action.unit_id);
     }
 
     void process_actions() {
         while (!actions_queue.empty()) {
             Action action = actions_queue.top(); actions_queue.pop();
 
-            Pos destination = unit(action.unit_id).pos + action.dir;
+            Pos actual = unit(action.unit_id).pos;
+            Pos destination = actual + action.dir;
 
-            // TODO: Make the exception for positions where there is an enemy with enough life to not die even if all demands attack him
-            if (used_positions.insert(~destination).second) {
+            auto insertion = used_positions.insert({ ~destination, 1 });
+
+            if (insertion.second) {
                 // Was not a used position, perform command
                 ensure(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me(), "attacking own unit!");
 
                 //cerr << "Unit " << action.unit_id << " to " << destination << endl;
-                command(action.unit_id, action.dir);
-                units_to_command.erase(action.unit_id);
+                action_command(action);
+            }
+            else if (not is_thunderdome(actual, destination) and is_on(destination, Enemy, Warrior)) {
+                const Unit& u = unit(cell(destination).id);
+                snumber life = unit_life(u);
+
+                snumber demands = insertion.first->second + 1;
+
+                if (demands*6 < life) {
+                    action_command(action);
+                }
             }
         }
     }
@@ -419,23 +469,20 @@ struct PLAYER_NAME : public Player {
         return not in(units_to_command, unit.id);
     }
 
-    // endregion
+    inline bool can_demand(const Unit& u, P pos) {
+        auto search = used_positions.find(~pos);
 
+        if (search == used_positions.end()) return true;
+        else if (not is_thunderdome(u.pos, pos) and is_on(pos, Enemy, Warrior)) {
+            const Unit& enemy = unit(cell(pos).id);
+            snumber life = min(enemy.water, enemy.food);
 
-    // region state
-    // ███████╗████████╗ █████╗ ████████╗███████╗
-    // ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██╔════╝
-    // ███████╗   ██║   ███████║   ██║   █████╗
-    // ╚════██║   ██║   ██╔══██║   ██║   ██╔══╝
-    // ███████║   ██║   ██║  ██║   ██║   ███████╗
-    // ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝
+            snumber demands = search->second + 1;
 
-    typedef vector<int> VI;
-    typedef vector<bool> VB;
-    typedef vector<VB> VVB;
-
-    vector<int> my_car_ids;
-    vector<int> my_warrior_ids;
+            return demands*6 < life;
+        }
+        else return false;
+    }
 
     // endregion
 
@@ -464,6 +511,12 @@ struct PLAYER_NAME : public Player {
         bool found() { // Returns whether a path was found
             return dist != USHRT_MAX;
         }
+
+        friend ostream& operator<<(ostream& o, const PathInfo& p) {
+            o << "[ " << p.dist << ", " << p.dest << ", (" << int(p.dir.i) << ", " << int(p.dir.j) << ")";
+
+            return o;
+        }
     };
 
     struct BFSPathInfo: public PathInfo {
@@ -480,7 +533,7 @@ struct PLAYER_NAME : public Player {
             const function<bool(P)>& is_dest,
             const function<number(P, number)>& dist,
             number max_dist = USHRT_MAX,
-            bool first_allowed = false)
+            bool first_allowed = true)
     {
         if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, initial };
 
@@ -491,7 +544,7 @@ struct PLAYER_NAME : public Player {
         for (D dir : dirs) {
             Pos dest = initial + dir;
 
-            if (can_go(dest) and not is_taken(dest)) {
+            if (can_go(dest)) {
                 seen[dest.i][dest.j] = true;
                 queue.push(BFSPathInfo(dir, dist_initial_left, dist_initial_left, dest));
             }
@@ -532,7 +585,7 @@ struct PLAYER_NAME : public Player {
             const function<bool(P)>& can_go,
             const function<bool(P)>& is_dest,
             number max_dist = USHRT_MAX,
-            bool first_allowed = false)
+            bool first_allowed = true)
     {
         if (unit.type == Warrior) return bfs(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; }, max_dist, first_allowed);
         else return
@@ -541,7 +594,7 @@ struct PLAYER_NAME : public Player {
                 can_go,
                 is_dest,
                 [&unit, this](P pos, number distance_travelled) {
-                    return is(pos, Road) and (unit.food - distance_travelled > 0) ? 1 : 4;
+                    return rounds_to_move_car(unit, pos, distance_travelled);
                 },
                 max_dist,
                 first_allowed
@@ -553,7 +606,7 @@ struct PLAYER_NAME : public Player {
             const function<bool(P)>& is_dest,
             Safety safety,
             number max_dist = USHRT_MAX,
-            bool first_allowed = false)
+            bool first_allowed = true)
     {
         return bfs(unit, [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); }, is_dest, max_dist, first_allowed);
     }
@@ -574,7 +627,7 @@ struct PLAYER_NAME : public Player {
             Owner owner,
             UnitType type = UnitTypeSize,
             number max_dist = USHRT_MAX,
-            bool first_allowed = false)
+            bool first_allowed = true)
     {
         return bfs(
                 unit,
@@ -647,7 +700,7 @@ struct PLAYER_NAME : public Player {
         for (D dir : dirs) {
             Pos dest = initial + dir;
 
-            if (can_go(dest) and not is_taken(dest)) {
+            if (can_go(dest)) {
                 cost_m[dest.i][dest.j] = cost(dest);
                 queue.push(WSPPathInfo(dir, dist_initial_left, cost_m[dest.i][dest.j], dest));
             }
@@ -690,6 +743,93 @@ struct PLAYER_NAME : public Player {
     // endregion
 
 
+    // region state
+    // ███████╗████████╗ █████╗ ████████╗███████╗
+    // ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██╔════╝
+    // ███████╗   ██║   ███████║   ██║   █████╗
+    // ╚════██║   ██║   ██╔══██║   ██║   ██╔══╝
+    // ███████║   ██║   ██║  ██║   ██║   ███████╗
+    // ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚══════╝
+
+    typedef vector<int> VI;
+    typedef vector<bool> VB;
+    typedef vector<VB> VVB;
+
+    vector<int> my_car_ids;
+    vector<int> my_warrior_ids;
+
+    CellType cell_type[60][60];
+
+
+    struct CityInfo {
+        vector<Pos> pos;
+    };
+
+    CityInfo city_info[8];
+
+
+    struct CellInfo {
+        snumber possible_movements = 0;
+
+        snumber enemy_warriors = 0;
+        snumber enemy_warriors_water = 0;
+        snumber enemy_warriors_life = 0;
+        snumber enemy_cars = 0;
+
+        snumber city_id;
+
+        bool gives_water = false;
+        bool gives_fuel = false;
+
+
+        PathInfo water;
+        PathInfo city;
+        PathInfo station;
+        PathInfo road;
+
+        PathInfo cities[8];
+
+        //PathInfo to[60][60];
+
+        /*PathInfo& operator[](P pos) {
+            return to[pos.i][pos.j];
+        }*/
+
+        friend ostream& operator<<(ostream& os, const CellInfo& c) {
+            os << "---- CellInfo -----" << endl
+               << "possible_movements: " << int(c.possible_movements) << endl << endl
+               << "enemy_warriors: " << int(c.enemy_warriors) << endl
+               << "enemy_warriors_water: " << int(c.enemy_warriors_water) << endl
+               << "enemy_warriors_life: " << int(c.enemy_warriors_life) << endl
+               << "enemy_cars: " << int(c.enemy_cars) << endl << endl
+               << "city id: " << int(c.city_id) << endl << endl
+               << (c.gives_fuel ? "gives fuel" : c.gives_water ? "gives_water" : "does not give") << endl << endl
+               << "water: " << c.water << endl
+               << "station: " << c.station << endl
+               << "city: " << c.city << endl
+               << "road: " << c.road << endl << endl;
+
+
+            for (int i = 0; i < 8; ++i) {
+                os << "city " << i << ": " << c.cities[i] << endl;
+            }
+
+            os << "-------------------" << endl;
+
+            return os;
+        }
+    };
+
+    CellInfo& operator[](P pos) {
+        return cell_info[pos.i][pos.j];
+    }
+
+
+    CellInfo cell_info[60][60];
+
+    // endregion
+
+
     // region strategy
     // ███████╗████████╗██████╗  █████╗ ████████╗███████╗ ██████╗██╗   ██╗
     // ██╔════╝╚══██╔══╝██╔══██╗██╔══██╗╚══██╔══╝██╔════╝██╔════╝╚██╗ ██╔╝
@@ -701,7 +841,7 @@ struct PLAYER_NAME : public Player {
     void compute_action_warrior(const Unit& warrior) {
         //cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
 
-        PathInfo enemy_warrior = bfs(warrior, Unsafe, Enemy, Warrior);
+        /*PathInfo enemy_warrior = bfs(warrior, Unsafe, Enemy, Warrior);
 
         if (enemy_warrior.found() and enemy_warrior.dist == 1 and unit(cell(enemy_warrior.dest).id).water <= warrior.water) {
             action(warrior, enemy_warrior, 30);
@@ -737,14 +877,14 @@ struct PLAYER_NAME : public Player {
         if (water.found()) {
             action(warrior, water, 1);
             return;
-        }
+        }*/
 
-        action(warrior, None, 20);
+        action(warrior, cinfo[warrior.pos].water.dir, 20);
     }
 
 
     void compute_action_car(const Unit& car) {
-        if (not can_move(car.id)) return set_inactive_round(car);
+        /*if (not can_move(car.id)) return set_inactive_round(car);
 
         PathInfo station = bfs(car, Unsafe, Adjacent, Station);
 
@@ -762,7 +902,9 @@ struct PLAYER_NAME : public Player {
 
         if (own_city.found()) return action(car, own_city, 1);
 
-        return action(car, station, 3);
+        return action(car, station, 3);*/
+
+        return action(car, None, 0);
     }
 
 
@@ -802,6 +944,87 @@ struct PLAYER_NAME : public Player {
         my_warrior_ids = warriors(me());
     }
 
+    void init_enemyinfo() {
+        for (int i = 0; i < rows(); ++i) {
+            for (int j = 0; j < cols(); ++j) {
+                Pos pos(i, j);
+
+                cinfo[pos].enemy_warriors = 0;
+                cinfo[pos].enemy_warriors_water = 0;
+                cinfo[pos].enemy_warriors_life = 0;
+                cinfo[pos].enemy_cars = 0;
+            }
+        }
+
+        for (snumber player_id = 0; player_id < 4; ++player_id) {
+            if (player_id == me()) continue;
+
+            for (int unit_id : warriors(player_id)) {
+                const Unit& u = unit(unit_id);
+
+                for (D dir : dirs) {
+                    P dest = u.pos + dir;
+
+                    if (can_move_to_simple_warrior(dest)) {
+                        ++cinfo[dest].enemy_warriors;
+                        cinfo[dest].enemy_warriors_water += u.water;
+                        cinfo[dest].enemy_warriors_life += unit_life(u);
+                    }
+                }
+            }
+
+            for (int unit_id : cars(player_id)) {
+                const Unit& u = unit(unit_id);
+
+                P initial = u.pos;
+
+                memset(seen, false, sizeof seen);
+
+                seen[initial.i][initial.j] = true;
+
+                queue<pair<bool, pair<int, Pos>>> queue;
+
+                queue.push({ false, { 0, initial } });
+
+
+                while (not queue.empty()) {
+                    auto from = queue.front();
+                    queue.pop();
+
+                    for (D dir : dirs) {
+                        P dest = from.second.second + dir;
+
+                        if (not seen[dest.i][dest.j] and can_move_to_simple_car(dest)) {
+                            seen[dest.i][dest.j] = true;
+
+                            bool is_station = from.first or has(dest, Fuel);
+
+                            number dist_next = rounds_to_move_car(u, from.second.second, from.second.first, is_station);
+                            number total_dist = from.second.first + dist_next;
+
+                            if (total_dist <= 4) {
+                                queue.push({ is_station, { total_dist, dest } });
+                                ++cinfo[dest].enemy_cars;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    void round_init() {
+        get_my_units();
+
+        used_positions.clear();
+
+        if (can_warriors_move()) units_to_command.insert(my_warrior_ids.begin(), my_warrior_ids.end());
+        units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
+
+        init_enemyinfo();
+    }
+
     // endregion
 
 
@@ -813,57 +1036,26 @@ struct PLAYER_NAME : public Player {
     // ██║     ██║██║  ██║███████║   ██║       ██║██║ ╚████║██║   ██║
     // ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝       ╚═╝╚═╝  ╚═══╝╚═╝   ╚═╝
 
-    CellType cell_type[60][60];
-
-
-    struct CityInfo {
-        vector<Pos> pos;
-    };
-
-    CityInfo city_info[8];
-
-
-    struct CellInfo {
-        snumber city_id;
-
-        PathInfo water;
-        PathInfo city;
-        PathInfo station;
-        PathInfo road;
-
-        PathInfo cities[8];
-
-        //PathInfo to[60][60];
-
-        /*PathInfo& operator[](P pos) {
-            return to[pos.i][pos.j];
-        }*/
-    };
-
-    CellInfo& operator[](P pos) {
-        return cell_info[pos.i][pos.j];
-    }
-
-
-    CellInfo cell_info[60][60];
-
-
 
     // Called only on the first round to perform some initialization
 
     void check_and_add_proximities(P orig, P dest, const PathInfo& to) {
         CellInfo& cellinfo = cinfo[orig];
 
-        if (is(dest, Water)) {
+        if (cinfo[dest].gives_water) {
             if (not cellinfo.water.found()) cellinfo.water = to;
         }
-        else if (is(dest, City)) {
+
+        if (cinfo[dest].gives_fuel) {
+            if (not cellinfo.station.found()) cellinfo.station = to;
+        }
+
+        if (is(dest, City)) {
             if (not cellinfo.city.found()) cellinfo.city = to;
 
-            if (not cellinfo.cities[cellinfo.city_id].found()) cellinfo.cities[cellinfo.city_id] = to;
-        }
-        else if (is(dest, Station)) {
-            if (not cellinfo.station.found()) cellinfo.station = to;
+            if (not cellinfo.cities[cinfo[dest].city_id].found()) {
+                cellinfo.cities[cinfo[dest].city_id] = to;
+            }
         }
         else if (is(dest, Road)) {
             if (not cellinfo.road.found()) cellinfo.road = to;
@@ -878,10 +1070,14 @@ struct PLAYER_NAME : public Player {
                 P initial = Pos(i, j);
                 queue<PathInfo> queue;
 
+                check_and_add_proximities(initial, initial, PathInfo({0,0}, 0, initial));
+
                 for (D dir : dirs) {
                     P dest = initial + dir;
 
                     if (can_move_to_simple_warrior(dest)) {
+                        ++cinfo[initial].possible_movements;
+
                         seen[dest.i][dest.j] = true;
                         PathInfo to(dir, 1, dest);
                         queue.push(to);
@@ -940,6 +1136,7 @@ struct PLAYER_NAME : public Player {
                             cinfo[from].city_id = id;
                             city_info[id].pos.push_back(from);
 
+
                             for (D dir : dirs) {
                                 P dest = from + dir;
 
@@ -960,14 +1157,34 @@ struct PLAYER_NAME : public Player {
     }
 
     void init_celltype() {
-        for (number i = 0; i < rows(); ++i)
-            for (number j = 0; j < cols(); ++j) cell_type[i][j] = cell(i, j).type;
+        for (number i = 0; i < rows(); ++i) {
+            for (number j = 0; j < cols(); ++j) {
+                cell_type[i][j] = cell(i, j).type;
+
+                if (cell_type[i][j] == Water) {
+                    for (D dir : dirs) {
+                        P dest = Pos(i, j) + dir;
+                        if (can_move_to_simple_warrior(dest)) {
+                            cinfo[dest].gives_water = true;
+                        }
+                    }
+                }
+                else if (cell_type[i][j] == Station) {
+                    for (D dir : dirs) {
+                        P dest = Pos(i, j) + dir;
+                        if (can_move_to_simple_warrior(dest)) {
+                            cinfo[dest].gives_fuel = true;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     void first_init() {
         init_celltype();
-        //init_cityinfo();
-        //init_cellinfo();
+        init_cityinfo();
+        init_cellinfo();
     }
 
     // endregion
@@ -986,17 +1203,18 @@ struct PLAYER_NAME : public Player {
 
         if (round() == 0) first_init();
 
-        get_my_units();
+        round_init();
 
-        used_positions.clear();
-
-        if (can_warriors_move()) units_to_command.insert(my_warrior_ids.begin(), my_warrior_ids.end());
-        units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
-
+        int commanded = 0;
         do {
+            int previous_units_to_command = units_to_command.size();
             compute_actions();
             process_actions();
-        } while(not units_to_command.empty());
+            commanded = previous_units_to_command - units_to_command.size();
+        } while(not units_to_command.empty() and commanded > 0);
+
+        //ensure(units_to_command.empty(), "Some units not commanded!")
+        units_to_command.clear();
     }
 
     // endregion
