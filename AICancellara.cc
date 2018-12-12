@@ -386,6 +386,10 @@ struct PLAYER_NAME : public Player {
         return is(pos, Road) and (refueled or (u.food - distance_travelled > 0)) ? 1 : 4;
     }
 
+    inline float win_probability_warrior_thunderdome(const Unit& own, const Unit& enemy) {
+        return ((own.food - enemy.food)/float(40) + 1)/2;
+    }
+
     //endregion
 
 
@@ -774,6 +778,8 @@ struct PLAYER_NAME : public Player {
         snumber own_water;
         snumber enemy_water;
 
+        snumber owner;
+
         float avg_water_distance;
     };
 
@@ -890,6 +896,34 @@ struct PLAYER_NAME : public Player {
     }
 
     void handle_warrior_threat(const Unit& warrior) {
+        float max_probability = 0;
+        Direction max_probability_dir;
+        bool found_thunderdome = false;
+
+        for (D dir : dirs) {
+            P dest = warrior.pos + dir;
+
+            if (is_on(dest, Enemy, Warrior)) {
+                if (is_thunderdome(warrior.pos, dest) and can_demand(warrior, dest)) {
+                    float prob = win_probability_warrior_thunderdome(warrior, unit(cell(dest).id));
+
+                    if (prob > max_probability) {
+                        max_probability = prob;
+                        max_probability_dir = dir;
+                        found_thunderdome = true;
+                    }
+                }
+            }
+        }
+
+        if (found_thunderdome and max_probability >= 0.5) {
+            action(warrior, max_probability_dir, warrior.water*10;)
+        }
+        else {
+
+        }
+
+
         // TODO: See if the situation is favorable based on
         //        snumber enemy_warriors = 0;
         //        snumber enemy_warriors_water = 0;
@@ -901,15 +935,19 @@ struct PLAYER_NAME : public Player {
         //        snumber own_warriors_life = 0;
         //        snumber own_cars = 0;
         // if favorable, attack
+
+
     }
 
     void handle_warrior_goto_city(const Unit& warrior) {
         if (is(warrior.pos, City)) {
-            for (P pos : city_info[cinfo[warrior.pos].city_id].pos) {
+            /*for (P pos : city_info[cinfo[warrior.pos].city_id].pos) {
                 // TODO: Implement position demands system
-            }
+            }*/
+            action(warrior, None, 10000);
         }
         else {
+            choose_best_dir_warrior(warrior, City);
             // Not in a city
             // TODO: Decide where to go
             // TODO: Decision should stick
@@ -1119,6 +1157,7 @@ struct PLAYER_NAME : public Player {
             cityInfo.enemy_units = 0;
             cityInfo.own_water = 0;
             cityInfo.enemy_water = 0;
+            cityInfo.owner = cell(cityInfo.pos[0]).owner;
 
             for (P pos : cityInfo.pos) {
                 if (is_on(pos, Own, Warrior)) {
