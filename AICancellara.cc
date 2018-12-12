@@ -768,6 +768,13 @@ struct PLAYER_NAME : public Player {
 
     struct CityInfo {
         vector<Pos> pos;
+
+        snumber own_units;
+        snumber enemy_units;
+        snumber own_water;
+        snumber enemy_water;
+
+        float avg_water_distance;
     };
 
     CityInfo city_info[8];
@@ -781,7 +788,12 @@ struct PLAYER_NAME : public Player {
         snumber enemy_warriors_life = 0;
         snumber enemy_cars = 0;
 
-        snumber city_id;
+        snumber own_warriors = 0;
+        snumber own_warriors_water = 0;
+        snumber own_warriors_life = 0;
+        snumber own_cars = 0;
+
+        snumber city_id = 8;
 
         bool gives_water = false;
         bool gives_fuel = false;
@@ -843,71 +855,98 @@ struct PLAYER_NAME : public Player {
     // ███████║   ██║   ██║  ██║██║  ██║   ██║   ███████╗╚██████╔╝  ██║
     // ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝
 
+    D choose_best_dir_warrior(const Unit& warrior, CellType type) {
+        // TODO: Implement sort on copied dirs array with comparison function, choose first available
+    }
+
+    bool is_safe_warrior(P pos) {
+        return cinfo[pos].enemy_warriors == 0 and cinfo[pos].enemy_cars == 0;
+    }
+
+    // Assumes that warrior is currently safe
+    inline bool should_go_for_water(const Unit& warrior) {
+        const CellInfo& info = cinfo[warrior.pos];
+
+        P step = warrior.pos + info.water.dir;
+        P dest = info.water.dest;
+
+        bool should_go_passby =
+            (
+                (warrior.water < 30 and info.water.dist <= 4) or
+                (warrior.water < 25 and info.water.dist <= 6) or
+                (warrior.water < 20 and info.water.dist <= 9)
+            )
+            and is_safe_warrior(dest)
+            and is_safe_warrior(step);
+
+        if (should_go_passby) return true;
+        else {
+            return warrior.water - info.water.dist <= 5;
+        }
+    }
+
+    void handle_warrior_escape_from_car(const Unit& warrior) {
+        choose_best_dir_warrior(warrior, City);
+    }
+
+    void handle_warrior_threat(const Unit& warrior) {
+        // TODO: See if the situation is favorable based on
+        //        snumber enemy_warriors = 0;
+        //        snumber enemy_warriors_water = 0;
+        //        snumber enemy_warriors_life = 0;
+        //        snumber enemy_cars = 0;
+        //
+        //        snumber own_warriors = 0;
+        //        snumber own_warriors_water = 0;
+        //        snumber own_warriors_life = 0;
+        //        snumber own_cars = 0;
+        // if favorable, attack
+    }
+
+    void handle_warrior_goto_city(const Unit& warrior) {
+        if (is(warrior.pos, City)) {
+            for (P pos : city_info[cinfo[warrior.pos].city_id].pos) {
+                // TODO: Implement position demands system
+            }
+        }
+        else {
+            // Not in a city
+            // TODO: Decide where to go
+            // TODO: Decision should stick
+        }
+    }
+
+
     void compute_action_warrior(const Unit& warrior) {
         //cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
+        const CellInfo& info = cinfo[warrior.pos];
 
-        /*PathInfo enemy_warrior = bfs(warrior, Unsafe, Enemy, Warrior);
-
-        if (enemy_warrior.found() and enemy_warrior.dist == 1 and unit(cell(enemy_warrior.dest).id).water <= warrior.water) {
-            action(warrior, enemy_warrior, 30);
-            return;
+        if (info.enemy_cars > 0) {
+            handle_warrior_escape_from_car(warrior);
         }
-
-        PathInfo water = bfs(warrior, Safe, Adjacent, Water);
-        if (water.found() and water.dist >= warrior.water - 5) {
-            //cerr << "Warrior going for wateeeer" << endl;
-            action(warrior, water, 5);
-            return;
+        else if (info.enemy_warriors > 0) {
+            handle_warrior_threat(warrior);
         }
+        else {
+            // Not in danger bro
 
-        PathInfo enemy_city = bfs(warrior, Unsafe, ExactlyThere, Enemy);
-        if (enemy_city.found() and warrior.water > 25 and not is(warrior.pos, Own)) {
-            //cerr << "Warrior going for enemy city" << endl;
-            action(warrior, enemy_city, 1);
-            return;
+            // Look for water
+            if (should_go_for_water(warrior)) {
+                action(warrior, choose_best_dir_warrior(warrior, Water), 40 - warrior.water);
+            }
+            else { // Go to city
+                handle_warrior_goto_city(warrior);
+            }
         }
-
-        PathInfo city = bfs(warrior, Safe, ExactlyThere, Anyone);
-        if (city.found() and city.dist >= warrior.food - 3) {
-            action(warrior, city, 5);
-            return;
-        }
-
-        PathInfo own_city = bfs(warrior, Safe, ExactlyThere, Own);
-        if (own_city.found()) {
-            action(warrior, own_city, 2);
-            return;
-        }
-
-        if (water.found()) {
-            action(warrior, water, 1);
-            return;
-        }*/
-
-        action(warrior, cinfo[warrior.pos].water.dir, 20);
     }
 
 
     void compute_action_car(const Unit& car) {
-        /*if (not can_move(car.id)) return set_inactive_round(car);
+        if (not can_move(car.id)) return set_inactive_round(car);
 
-        PathInfo station = bfs(car, Unsafe, Adjacent, Station);
+        // TODO: Cars should be extremely efficient on killing enemies
+        // TODO: That means they should always pass by a station if near
 
-        if (station.dist >= car.food) return action(car, station, 3);
-
-        PathInfo enemy_warrior = bfs(car, Unsafe, Enemy, Warrior);
-
-        if (enemy_warrior.found()) return action(car, enemy_warrior, 2);
-
-        PathInfo enemy_city = bfs(car, Unsafe, Adjacent, Enemy);
-
-        if (enemy_city.found()) return action(car, enemy_city, 1);
-
-        PathInfo own_city = bfs(car, Unsafe, Adjacent, Own);
-
-        if (own_city.found()) return action(car, own_city, 1);
-
-        return action(car, station, 3);*/
 
         return action(car, None, 0);
     }
@@ -949,7 +988,7 @@ struct PLAYER_NAME : public Player {
         my_warrior_ids = warriors(me());
     }
 
-    void init_enemyinfo() {
+    void init_unitinfo() {
         for (int i = 0; i < rows(); ++i) {
             for (int j = 0; j < cols(); ++j) {
                 Pos pos(i, j);
@@ -958,61 +997,137 @@ struct PLAYER_NAME : public Player {
                 cinfo[pos].enemy_warriors_water = 0;
                 cinfo[pos].enemy_warriors_life = 0;
                 cinfo[pos].enemy_cars = 0;
+                cinfo[pos].own_cars = 0;
+                cinfo[pos].own_warriors = 0;
+                cinfo[pos].own_warriors_life = 0;
+                cinfo[pos].own_warriors_water = 0;
             }
         }
 
         for (snumber player_id = 0; player_id < 4; ++player_id) {
-            if (player_id == me()) continue;
-
-            for (int unit_id : warriors(player_id)) {
-                const Unit& u = unit(unit_id);
-
-                for (D dir : dirs) {
-                    P dest = u.pos + dir;
-
-                    if (can_move_to_simple_warrior(dest)) {
-                        ++cinfo[dest].enemy_warriors;
-                        cinfo[dest].enemy_warriors_water += u.water;
-                        cinfo[dest].enemy_warriors_life += unit_life(u);
-                    }
-                }
-            }
-
-            for (int unit_id : cars(player_id)) {
-                const Unit& u = unit(unit_id);
-
-                P initial = u.pos;
-
-                memset(seen, false, sizeof seen);
-
-                seen[initial.i][initial.j] = true;
-
-                queue<pair<bool, pair<int, Pos>>> queue;
-
-                queue.push({ false, { 0, initial } });
-
-
-                while (not queue.empty()) {
-                    auto from = queue.front();
-                    queue.pop();
+            if (player_id == me()) {
+                for (int unit_id : warriors(player_id)) {
+                    const Unit& u = unit(unit_id);
 
                     for (D dir : dirs) {
-                        P dest = from.second.second + dir;
+                        P dest = u.pos + dir;
 
-                        if (not seen[dest.i][dest.j] and can_move_to_simple_car(dest)) {
-                            seen[dest.i][dest.j] = true;
+                        if (can_move_to_simple_warrior(dest)) {
+                            ++cinfo[dest].own_warriors;
+                            cinfo[dest].own_warriors_water += u.water;
+                            cinfo[dest].own_warriors_life += unit_life(u);
+                        }
+                    }
+                }
 
-                            bool is_station = from.first or has(dest, Fuel);
+                for (int unit_id : cars(player_id)) {
+                    const Unit& u = unit(unit_id);
 
-                            number dist_next = rounds_to_move_car(u, from.second.second, from.second.first, is_station);
-                            number total_dist = from.second.first + dist_next;
+                    P initial = u.pos;
 
-                            if (total_dist <= 4) {
-                                queue.push({ is_station, { total_dist, dest } });
-                                ++cinfo[dest].enemy_cars;
+                    memset(seen, false, sizeof seen);
+
+                    seen[initial.i][initial.j] = true;
+
+                    queue<pair<bool, pair<int, Pos>>> queue;
+
+                    queue.push({ false, { 0, initial } });
+
+
+                    while (not queue.empty()) {
+                        auto from = queue.front();
+                        queue.pop();
+
+                        for (D dir : dirs) {
+                            P dest = from.second.second + dir;
+
+                            if (not seen[dest.i][dest.j] and can_move_to_simple_car(dest)) {
+                                seen[dest.i][dest.j] = true;
+
+                                bool is_station = from.first or has(dest, Fuel);
+
+                                number dist_next = rounds_to_move_car(u, from.second.second, from.second.first, is_station);
+                                number total_dist = from.second.first + dist_next;
+
+                                if (total_dist <= 4) {
+                                    queue.push({ is_station, { total_dist, dest } });
+                                    ++cinfo[dest].own_cars;
+                                }
                             }
                         }
                     }
+                }
+            }
+            else {
+                for (int unit_id : warriors(player_id)) {
+                    const Unit& u = unit(unit_id);
+
+                    for (D dir : dirs) {
+                        P dest = u.pos + dir;
+
+                        if (can_move_to_simple_warrior(dest)) {
+                            ++cinfo[dest].enemy_warriors;
+                            cinfo[dest].enemy_warriors_water += u.water;
+                            cinfo[dest].enemy_warriors_life += unit_life(u);
+                        }
+                    }
+                }
+
+                for (int unit_id : cars(player_id)) {
+                    const Unit& u = unit(unit_id);
+
+                    P initial = u.pos;
+
+                    memset(seen, false, sizeof seen);
+
+                    seen[initial.i][initial.j] = true;
+
+                    queue<pair<bool, pair<int, Pos>>> queue;
+
+                    queue.push({ false, { 0, initial } });
+
+
+                    while (not queue.empty()) {
+                        auto from = queue.front();
+                        queue.pop();
+
+                        for (D dir : dirs) {
+                            P dest = from.second.second + dir;
+
+                            if (not seen[dest.i][dest.j] and can_move_to_simple_car(dest)) {
+                                seen[dest.i][dest.j] = true;
+
+                                bool is_station = from.first or has(dest, Fuel);
+
+                                number dist_next = rounds_to_move_car(u, from.second.second, from.second.first, is_station);
+                                number total_dist = from.second.first + dist_next;
+
+                                if (total_dist <= 4) {
+                                    queue.push({ is_station, { total_dist, dest } });
+                                    ++cinfo[dest].enemy_cars;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        for (CityInfo& cityInfo : city_info) {
+            cityInfo.own_units = 0;
+            cityInfo.enemy_units = 0;
+            cityInfo.own_water = 0;
+            cityInfo.enemy_water = 0;
+
+            for (P pos : cityInfo.pos) {
+                if (is_on(pos, Own, Warrior)) {
+                    ++cityInfo.own_units;
+                    cityInfo.own_water += unit_pos(pos).water;
+                }
+                else if (is_on(pos, Enemy, Warrior)) {
+                    ++cityInfo.enemy_units;
+                    cityInfo.enemy_water += unit_pos(pos).water;
                 }
             }
         }
@@ -1027,7 +1142,7 @@ struct PLAYER_NAME : public Player {
         if (can_warriors_move()) units_to_command.insert(my_warrior_ids.begin(), my_warrior_ids.end());
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
-        init_enemyinfo();
+        init_unitinfo();
     }
 
     // endregion
@@ -1110,6 +1225,18 @@ struct PLAYER_NAME : public Player {
                     }
                 }
             }
+        }
+
+
+        for (CityInfo& cityInfo : city_info) {
+            number total = 0;
+            for (P pos : cityInfo.pos) {
+                total += cinfo[pos].water.dist;
+            }
+
+            cityInfo.avg_water_distance = float(total)/cityInfo.pos.size();
+
+            sort(cityInfo.pos.begin(), cityInfo.pos.end(), [this](const Pos& a, const Pos& b) { return cinfo[a].water.dist  < cinfo[b].water.dist; });
         }
     }
 
