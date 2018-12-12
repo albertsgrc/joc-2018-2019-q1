@@ -920,21 +920,22 @@ struct PLAYER_NAME : public Player {
             action(warrior, max_probability_dir, warrior.water*10;)
         }
         else {
+            // TODO: See if the situation is favorable based on
+            //        snumber enemy_warriors = 0;
+            //        snumber enemy_warriors_water = 0;
+            //        snumber enemy_warriors_life = 0;
+            //        snumber enemy_cars = 0;
+            //
+            //        snumber own_warriors = 0;
+            //        snumber own_warriors_water = 0;
+            //        snumber own_warriors_life = 0;
+            //        snumber own_cars = 0;
+            // if favorable, attack
 
+            // Attack the one with best own_warrior_water - enemy_warrior_water
+            // If the current warrior is about to die and all enemy warriors cannot be killed in this round, fleet
+            // Else if there is no position such that own_warrior_water > enemy_warrior_water, fleet
         }
-
-
-        // TODO: See if the situation is favorable based on
-        //        snumber enemy_warriors = 0;
-        //        snumber enemy_warriors_water = 0;
-        //        snumber enemy_warriors_life = 0;
-        //        snumber enemy_cars = 0;
-        //
-        //        snumber own_warriors = 0;
-        //        snumber own_warriors_water = 0;
-        //        snumber own_warriors_life = 0;
-        //        snumber own_cars = 0;
-        // if favorable, attack
 
 
     }
