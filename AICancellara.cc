@@ -543,9 +543,10 @@ struct PLAYER_NAME : public Player {
 
     struct BFSPathInfo: public PathInfo {
         number dist_next_left; // Rounds left to get to the next node
+        number dist_next;
         number dist_rounds;
 
-        BFSPathInfo(D dir, number dist, number dist_next_left, number dist_rounds, Pos dest) : PathInfo(dir, dist, dest), dist_next_left(dist_next_left), dist_rounds(dist_rounds) {}
+        BFSPathInfo(D dir, number dist, number dist_next, number dist_rounds, Pos dest) : PathInfo(dir, dist, dest), dist_next_left(dist_next), dist_next(dist_next), dist_rounds(dist_rounds) {}
         BFSPathInfo() : PathInfo() {}
 
         friend ostream& operator<<(ostream& o, const BFSPathInfo& p) {
@@ -561,6 +562,7 @@ struct PLAYER_NAME : public Player {
             const function<bool(P)>& can_go,
             const function<bool(P)>& is_dest,
             const function<number(P, number)>& dist,
+            const function<void(BFSPathInfo&)>& visit = [](BFSPathInfo& p) {},
             number max_dist = USHRT_MAX,
             bool first_allowed = true)
     {
@@ -569,13 +571,15 @@ struct PLAYER_NAME : public Player {
         queue<BFSPathInfo> queue;
         memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
 
+        number dist_first = dist(initial, 0);
+
         for (D dir : dirs) {
             Pos dest = initial + dir;
 
             if (can_go(dest)) {
                 seen[dest.i][dest.j] = true;
                 number dist_initial_left = dist(dest, 1);
-                queue.push(BFSPathInfo(dir, 1, dist_initial_left, dist_initial_left, dest));
+                queue.push(BFSPathInfo(dir, 1, dist_initial_left, dist_first, dest));
             }
         }
 
@@ -588,6 +592,8 @@ struct PLAYER_NAME : public Player {
                 continue;
             }
 
+            visit(pathInfoOrigin);
+
 
             for (D dir : dirs) {
                 Pos dest = pathInfoOrigin.dest + dir;
@@ -596,7 +602,7 @@ struct PLAYER_NAME : public Player {
                     seen[dest.i][dest.j] = true;
 
                     number dist_next = dist(dest, pathInfoOrigin.dist + 1);
-                    number total_dist_rounds = pathInfoOrigin.dist_rounds + dist_next;
+                    number total_dist_rounds = pathInfoOrigin.dist_rounds + pathInfoOrigin.dist_next;
 
                     if (total_dist_rounds <= max_dist) {
                         queue.push(BFSPathInfo(pathInfoOrigin.dir, pathInfoOrigin.dist + 1, dist_next, total_dist_rounds, dest));
@@ -613,11 +619,9 @@ struct PLAYER_NAME : public Player {
     PathInfo bfs(
             const Unit& unit,
             const function<bool(P)>& can_go,
-            const function<bool(P)>& is_dest,
-            number max_dist = USHRT_MAX,
-            bool first_allowed = true)
+            const function<bool(P)>& is_dest)
     {
-        if (unit.type == Warrior) return bfs(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; }, max_dist, first_allowed);
+        if (unit.type == Warrior) return bfs(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; });
         else return
             bfs(
                 unit.pos,
@@ -625,9 +629,7 @@ struct PLAYER_NAME : public Player {
                 is_dest,
                 [&unit, this](P pos, number distance_travelled) {
                     return rounds_to_move_car(unit, pos, distance_travelled);
-                },
-                max_dist,
-                first_allowed
+                }
             );
     }
 
@@ -638,16 +640,15 @@ struct PLAYER_NAME : public Player {
             number max_dist = USHRT_MAX,
             bool first_allowed = true)
     {
-        return bfs(unit, [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); }, is_dest, max_dist, first_allowed);
+        return bfs(unit, [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); }, is_dest);
     }
 
 
-    PathInfo bfs(const Unit& unit, P dest, Safety safety, number maxdist = USHRT_MAX) {
+    PathInfo bfs(const Unit& unit, P dest, Safety safety) {
         return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                [&dest](P pos) { return dest == pos; },
-                maxdist
+                [&dest](P pos) { return dest == pos; }
                 );
     }
 
@@ -655,20 +656,17 @@ struct PLAYER_NAME : public Player {
             const Unit& unit,
             Safety safety,
             Owner owner,
-            UnitType type = UnitTypeSize,
-            number max_dist = USHRT_MAX,
-            bool first_allowed = true)
+            UnitType type = UnitTypeSize)
     {
         return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                [owner, type, this](P pos) { return is_on(pos, owner, type); },
-                max_dist,
-                first_allowed
+                [owner, type, this](P pos) { return is_on(pos, owner, type); }
+
         );
     }
 
-    PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, CellType type, number maxdist = USHRT_MAX) {
+    PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, CellType type) {
         function<bool(P)> is_dest;
 
         if (adjacency == Adjacent) is_dest = [type, this](P pos) { return is_adjacent_to(pos, type); };
@@ -678,12 +676,11 @@ struct PLAYER_NAME : public Player {
         return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                is_dest,
-                maxdist
+                is_dest
         );
     }
 
-    PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, Owner owner, number maxdist = USHRT_MAX) {
+    PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, Owner owner) {
         function<bool(P)> is_dest;
 
         if (adjacency == Adjacent) is_dest = [owner, this](P pos) { return is_adjacent_to(pos, owner); };
@@ -693,12 +690,11 @@ struct PLAYER_NAME : public Player {
         return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                is_dest,
-                maxdist
+                is_dest
         );
     }
 
-    PathInfo bfs(const Unit& unit, Safety safety, Resource resource, number maxdist = USHRT_MAX) {
+    PathInfo bfs(const Unit& unit, Safety safety, Resource resource) {
         function<bool(P)> is_dest;
 
         if (resource == Drink) is_dest = [this](P pos) { return cinfo[pos].gives_water; };
@@ -708,8 +704,7 @@ struct PLAYER_NAME : public Player {
         return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                is_dest,
-                maxdist
+                is_dest
         );
     }
 
@@ -1227,38 +1222,14 @@ struct PLAYER_NAME : public Player {
 
                     P initial = u.pos;
 
-                    memset(seen, false, sizeof seen);
-
-                    seen[initial.i][initial.j] = true;
-
-                    queue<CarPreBFSPathInfo> queue;
-
-                    queue.push(CarPreBFSPathInfo(0, rounds_to_move_car(u, initial, 0, has(initial, Fuel)), initial, has(initial, Fuel)));
-
-                    while (not queue.empty()) {
-                        auto from = queue.front();
-                        queue.pop();
-
-                        for (D dir : dirs) {
-                            P dest = from.dest + dir;
-
-                            if (not seen[dest.i][dest.j] and can_move_to_simple_car(dest)) {
-                                seen[dest.i][dest.j] = true;
-
-                                bool is_station = from.station_in_path or has(dest, Fuel);
-
-                                number dist_next = rounds_to_move_car(u, dest, from.dist + 1, is_station);
-                                number total_dist_rounds = from.dist_rounds;
-                                number total_dist_rounds_next =  total_dist_rounds + dist_next;
-                                number total_dist = from.dist + 1;
-
-                                if (total_dist_rounds <= 4) {
-                                    queue.push(CarPreBFSPathInfo(total_dist, total_dist_rounds_next, dest, is_station));
-                                    ++cinfo[dest].own_cars;
-                                }
-                            }
-                        }
-                    }
+                    bfs(
+                        initial,
+                        [this](P pos) { return can_move_to_simple_car(pos); },
+                        [](P pos) { return false; },
+                        [this, &u](P pos, number dist) { return rounds_to_move_car(u, pos, dist); },
+                        [this](const BFSPathInfo& pathInfo) { ++cinfo[pathInfo.dest].own_cars; },
+                        4
+                    );
                 }
             }
             else {
@@ -1281,38 +1252,14 @@ struct PLAYER_NAME : public Player {
 
                     P initial = u.pos;
 
-                    memset(seen, false, sizeof seen);
-
-                    seen[initial.i][initial.j] = true;
-
-                    queue<CarPreBFSPathInfo> queue;
-
-                    queue.push(CarPreBFSPathInfo(0, rounds_to_move_car(u, initial, 0, has(initial, Fuel)), initial, has(initial, Fuel)));
-                    
-                    while (not queue.empty()) {
-                        auto from = queue.front();
-                        queue.pop();
-
-                        for (D dir : dirs) {
-                            P dest = from.dest + dir;
-
-                            if (not seen[dest.i][dest.j] and can_move_to_simple_car(dest)) {
-                                seen[dest.i][dest.j] = true;
-
-                                bool is_station = from.station_in_path or has(dest, Fuel);
-
-                                number dist_next = rounds_to_move_car(u, dest, from.dist + 1, is_station);
-                                number total_dist_rounds = from.dist_rounds;
-                                number total_dist_rounds_next =  total_dist_rounds + dist_next;
-                                number total_dist = from.dist + 1;
-
-                                if (total_dist_rounds <= 4) {
-                                    queue.push(CarPreBFSPathInfo(total_dist, total_dist_rounds_next, dest, is_station));
-                                    ++cinfo[dest].enemy_cars;
-                                }
-                            }
-                        }
-                    }
+                    bfs(
+                        initial,
+                        [this](P pos) { return can_move_to_simple_car(pos); },
+                        [](P pos) { return false; },
+                        [this, &u](P pos, number dist) { return rounds_to_move_car(u, pos, dist); },
+                        [this](const BFSPathInfo& pathInfo) { ++cinfo[pathInfo.dest].enemy_cars; },
+                        4
+                    );
                 }
             }
         }
