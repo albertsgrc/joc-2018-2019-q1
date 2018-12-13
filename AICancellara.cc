@@ -549,7 +549,7 @@ struct PLAYER_NAME : public Player {
         BFSPathInfo() : PathInfo() {}
 
         friend ostream& operator<<(ostream& o, const BFSPathInfo& p) {
-            o << "[ " << p.dist << ", " << p.dest << ", " << p.dir << ", " << p.dist_next_left << " ]";
+            o << "[ " << p.dist << ", " << p.dest << ", " << p.dir << ", " << p.dist_next_left << ", " << p.dist_rounds << " ]";
 
             return o;
         }
@@ -568,7 +568,7 @@ struct PLAYER_NAME : public Player {
 
         queue<BFSPathInfo> queue;
         memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
-        ;
+
         for (D dir : dirs) {
             Pos dest = initial + dir;
 
@@ -959,7 +959,7 @@ struct PLAYER_NAME : public Player {
     }
 
     void handle_warrior_escape_from_car(const Unit& warrior) {
-        choose_best_dir_warrior(warrior, City);
+        action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*1000);
     }
 
     void handle_warrior_threat(const Unit& warrior) {
@@ -985,11 +985,11 @@ struct PLAYER_NAME : public Player {
 
         if (found_thunderdome) {
             if (max_probability >= 0.55) {
-                cerr << "warrior will fight thunderdome" << endl;
+                cerr << "warrior " << warrior.pos << " will fight thunderdome" << endl;
                 return action(warrior, max_probability_dir, warrior.water*10);
             }
             else {
-                cerr << "warrior fleeing from thunderdome" << endl;
+                cerr << "warrior " << warrior.pos << " fleeing from thunderdome" << endl;
                 return action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*100);
             }
         }
@@ -1020,7 +1020,7 @@ struct PLAYER_NAME : public Player {
                 }
 
                 if (cinfo[warrior.pos].enemy_warriors_life > total_own_attack) {
-                    cerr << "warrior fleeing from warrior threat because he's about to die" << endl;
+                    cerr << "warrior " << warrior.pos << " fleeing from warrior threat because he's about to die" << endl;
                     return action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*100);
                 }
             }
@@ -1046,11 +1046,11 @@ struct PLAYER_NAME : public Player {
             }
 
             if (found and max_own_units < cinfo[warrior.pos].enemy_warriors) {
-                cerr << "warrior fleeing from warrior threat because its not favorable" << endl;
+                cerr << "warrior " << warrior.pos << " fleeing from warrior threat because its not favorable" << endl;
                 return action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*100);
             }
             else {
-                cerr << "warrior attacking other warrior" << endl;
+                cerr << "warrior" << warrior.pos << " attacking other warrior" << endl;
                 return action(warrior, best_dir, 1);
             }
 
@@ -1067,11 +1067,11 @@ struct PLAYER_NAME : public Player {
             }*/
 
             // TODO: Go on positions which have soldiers at close distance
-            cerr << "Warrior stay in city" << endl;
+            cerr << "Warrior " << warrior.pos << " stay in city" << endl;
             action(warrior, None, 50000);
         }
         else {
-            cerr << "Warrior going to city" << endl;
+            cerr << "Warrior " << warrior.pos << " going to city" << endl;
             action(warrior, choose_best_dir_warrior(warrior, City), 1);
             // Not in a city
             // TODO: Decide where to go
@@ -1085,7 +1085,7 @@ struct PLAYER_NAME : public Player {
         const CellInfo& info = cinfo[warrior.pos];
 
         if (info.enemy_cars > 0) {
-            cerr << "escape from car bro!" << endl;
+            cerr << "escape " << warrior.pos << " from car bro!" << endl;
             handle_warrior_escape_from_car(warrior);
         }
         else if (info.enemy_warriors > 0) {
@@ -1096,7 +1096,7 @@ struct PLAYER_NAME : public Player {
 
             // Look for water
             if (should_go_for_water(warrior)) {
-                cerr << "warrior going for water" << endl;
+                cerr << "warrior " << warrior.pos << " going for water" << endl;
                 action(warrior, choose_best_dir_warrior(warrior, Water), 40 - warrior.water);
             }
             else { // Go to city
@@ -1132,7 +1132,7 @@ struct PLAYER_NAME : public Player {
 
         if (enemy.found()) {
             cerr << "car " << car.pos << " attacking " << enemy.dir << ' ' << enemy.dist << endl;
-            return action(car, enemy.dir, 10000);
+            return action(car, enemy.dir, 100000);
         }
 
         PathInfo enemy_city = bfs(car, Safe, Adjacent, Enemy);
@@ -1143,7 +1143,7 @@ struct PLAYER_NAME : public Player {
 
         cerr << "car " << car.pos << "doing nothing" << endl;
 
-        return action(car, None, 60000);
+        return action(car, None, 600000);
     }
 
 
@@ -1233,8 +1233,7 @@ struct PLAYER_NAME : public Player {
 
                     queue<CarPreBFSPathInfo> queue;
 
-                    queue.push(CarPreBFSPathInfo(0, 0, initial, false));
-
+                    queue.push(CarPreBFSPathInfo(0, rounds_to_move_car(u, initial, 0, has(initial, Fuel)), initial, has(initial, Fuel)));
 
                     while (not queue.empty()) {
                         auto from = queue.front();
@@ -1249,11 +1248,12 @@ struct PLAYER_NAME : public Player {
                                 bool is_station = from.station_in_path or has(dest, Fuel);
 
                                 number dist_next = rounds_to_move_car(u, dest, from.dist + 1, is_station);
-                                number total_dist_rounds = from.dist_rounds + dist_next;
+                                number total_dist_rounds = from.dist_rounds;
+                                number total_dist_rounds_next =  total_dist_rounds + dist_next;
                                 number total_dist = from.dist + 1;
 
-                                if (total_dist <= 4) {
-                                    queue.push(CarPreBFSPathInfo(total_dist, total_dist_rounds, dest, is_station));
+                                if (total_dist_rounds <= 4) {
+                                    queue.push(CarPreBFSPathInfo(total_dist, total_dist_rounds_next, dest, is_station));
                                     ++cinfo[dest].own_cars;
                                 }
                             }
@@ -1287,9 +1287,8 @@ struct PLAYER_NAME : public Player {
 
                     queue<CarPreBFSPathInfo> queue;
 
-                    queue.push(CarPreBFSPathInfo(0, 0, initial, false));
-
-
+                    queue.push(CarPreBFSPathInfo(0, rounds_to_move_car(u, initial, 0, has(initial, Fuel)), initial, has(initial, Fuel)));
+                    
                     while (not queue.empty()) {
                         auto from = queue.front();
                         queue.pop();
@@ -1303,11 +1302,12 @@ struct PLAYER_NAME : public Player {
                                 bool is_station = from.station_in_path or has(dest, Fuel);
 
                                 number dist_next = rounds_to_move_car(u, dest, from.dist + 1, is_station);
-                                number total_dist_rounds = from.dist_rounds + dist_next;
+                                number total_dist_rounds = from.dist_rounds;
+                                number total_dist_rounds_next =  total_dist_rounds + dist_next;
                                 number total_dist = from.dist + 1;
 
-                                if (total_dist <= 4) {
-                                    queue.push(CarPreBFSPathInfo(total_dist, total_dist_rounds, dest, is_station));
+                                if (total_dist_rounds <= 4) {
+                                    queue.push(CarPreBFSPathInfo(total_dist, total_dist_rounds_next, dest, is_station));
                                     ++cinfo[dest].enemy_cars;
                                 }
                             }
