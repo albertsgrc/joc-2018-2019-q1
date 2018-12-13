@@ -397,7 +397,7 @@ struct PLAYER_NAME : public Player {
     }
 
     inline float win_probability_warrior_thunderdome(const Unit& own, const Unit& enemy) {
-        return ((own.food - enemy.food)/float(40) + 1)/2;
+        return ((own.water - enemy.water)/float(40) + 1)/2;
     }
 
     //endregion
