@@ -556,19 +556,19 @@ struct PLAYER_NAME : public Player {
         }
     };
 
-    // This should never be called
-    BFSPathInfo bfs(
+    template<typename T, typename std::enable_if<std::is_base_of<BFSPathInfo, T>::value>::type* = nullptr>
+    T bfs(
             P initial,
             const function<bool(P)>& can_go,
             const function<bool(P)>& is_dest,
             const function<number(P, number)>& dist,
-            const function<void(const BFSPathInfo&)>& visit = [](const BFSPathInfo& p){},
+            const function<void(const T&)>& visit = [](const T& p){},
             number max_dist = USHRT_MAX,
             bool first_allowed = true)
     {
         if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, 0, initial };
 
-        queue<BFSPathInfo> queue;
+        queue<T> queue;
         memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
 
         number dist_first = dist(initial, 0);
@@ -580,12 +580,12 @@ struct PLAYER_NAME : public Player {
                 seen[dest.i][dest.j] = true;
                 number dist_initial_left = dist(dest, 1);
 
-                queue.push(BFSPathInfo(dir, 1, dist_initial_left, dist_first, dest));
+                queue.push(T(dir, 1, dist_initial_left, dist_first, dest));
             }
         }
 
         while (not queue.empty() and not is_dest(queue.front().dest)) {
-            BFSPathInfo pathInfoOrigin = queue.front();
+            T pathInfoOrigin = queue.front();
             queue.pop();
 
             if (--pathInfoOrigin.dist_next_left > 0) {
@@ -617,40 +617,26 @@ struct PLAYER_NAME : public Player {
 
     }
 
+    template<typename T, typename std::enable_if<std::is_base_of<BFSPathInfo, T>::value>::type* = nullptr>
     PathInfo bfs(
             const Unit& unit,
             const function<bool(P)>& can_go,
-            const function<bool(P)>& is_dest)
+            const function<bool(P)>& is_dest,
+            const function<void(const T&)>& visit = [](const T& p){},
+            number max_dist = USHRT_MAX)
     {
-        if (unit.type == Warrior) return bfs(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; });
+        if (unit.type == Warrior) return bfs<T>(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; }, visit);
         else return
-            bfs(
+            bfs<T>(
                 unit.pos,
                 can_go,
                 is_dest,
                 [&unit, this](P pos, number distance_travelled) {
                     return rounds_to_move_car(unit, pos, distance_travelled);
-                }
-                // TODO: Add station control
+                },
+                visit,
+                max_dist
             );
-    }
-
-    PathInfo bfs(
-            const Unit& unit,
-            const function<bool(P)>& is_dest,
-            Safety safety
-            )
-    {
-        return bfs(unit, [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); }, is_dest);
-    }
-
-
-    PathInfo bfs(const Unit& unit, P dest, Safety safety) {
-        return bfs(
-                unit,
-                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                [&dest](P pos) { return dest == pos; }
-                );
     }
 
     PathInfo bfs(
@@ -659,24 +645,10 @@ struct PLAYER_NAME : public Player {
             Owner owner,
             UnitType type = UnitTypeSize)
     {
-        return bfs(
+        return bfs<BFSPathInfo>(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 [owner, type, this](P pos) { return is_on(pos, owner, type); }
-        );
-    }
-
-    PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, CellType type) {
-        function<bool(P)> is_dest;
-
-        if (adjacency == Adjacent) is_dest = [type, this](P pos) { return is_adjacent_to(pos, type); };
-        else is_dest = [type, this](P pos) { return is(pos, type); };
-
-
-        return bfs(
-                unit,
-                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                is_dest
         );
     }
 
@@ -687,7 +659,7 @@ struct PLAYER_NAME : public Player {
         else is_dest = [owner, this](P pos) { return is(pos, owner); };
 
 
-        return bfs(
+        return bfs<BFSPathInfo>(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest
@@ -701,7 +673,7 @@ struct PLAYER_NAME : public Player {
         else is_dest = [this](P pos) { return cinfo[pos].gives_fuel; };
 
 
-        return bfs(
+        return bfs<BFSPathInfo>(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest
@@ -1217,13 +1189,10 @@ struct PLAYER_NAME : public Player {
                 for (int unit_id : cars(player_id)) {
                     const Unit& u = unit(unit_id);
 
-                    P initial = u.pos;
-
-                    bfs(
-                        initial,
+                    bfs<BFSPathInfo>(
+                        u,
                         [this](P pos) { return can_move_to_simple_car(pos); },
                         [](P pos) { return false; },
-                        [this, &u](P pos, number dist) { return rounds_to_move_car(u, pos, dist); },
                         [this](const BFSPathInfo& pathInfo) {
                             ++cinfo[pathInfo.dest].own_cars;
                         },
@@ -1251,11 +1220,10 @@ struct PLAYER_NAME : public Player {
 
                     P initial = u.pos;
 
-                    bfs(
-                        initial,
+                    bfs<BFSPathInfo>(
+                        u,
                         [this](P pos) { return can_move_to_simple_car(pos); },
                         [](P pos) { return false; },
-                        [this, &u](P pos, number dist) { return rounds_to_move_car(u, pos, dist); },
                         [this](const BFSPathInfo& pathInfo) {
                             if (pathInfo.dist_rounds <= 4) ++cinfo[pathInfo.dest].enemy_cars;
                             cinfo[pathInfo.dest].enemy_cars_dist += 8 - pathInfo.dist_rounds;
