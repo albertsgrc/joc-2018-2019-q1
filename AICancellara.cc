@@ -481,8 +481,6 @@ struct PLAYER_NAME : public Player {
             Pos actual = u.pos;
             Pos destination = actual + action.dir;
 
-            // TODO: If there is an enemy in the destination and it's not going to die the current position must also be used
-
             auto insertion = used_positions.insert({ ~destination, 1 });
 
             if (insertion.second) {
@@ -928,7 +926,6 @@ struct PLAYER_NAME : public Player {
 
     Direction choose_best_dir_warrior(const Unit& warrior, CellType type) {
         // TODO: If you are threatened and every other position is also threatened, attack the easiest threat
-        // TODO: Implement sort on copied dirs array (including None position) with comparison function, choose first available
 
         int max_score = INT_MIN;
         Direction best_dir = { 0, 0 };
@@ -1001,10 +998,12 @@ struct PLAYER_NAME : public Player {
 
         if (found_thunderdome) {
             if (max_probability >= 0.55) {
+                debug(warrior, "attacking thunderdome with probability " + to_string(max_probability));
                 return action(warrior, max_probability_dir, warrior.water*10);
             }
             else {
-                return action(warrior, max_probability_dir, warrior.water*10);
+                debug(warrior, "fleeing from thunderdome with probability: " + to_string(max_probability));
+                return action(warrior, choose_best_dir_warrior(warrior, City), warrior.water*10);
             }
         }
         else {
@@ -1110,71 +1109,12 @@ struct PLAYER_NAME : public Player {
         }
     }
 
-    struct CarBFSPathInfo: public BFSPathInfo {
-        vector<int> enemies;
-
-        CarBFSPathInfo(D dir, number dist, number dist_next, number dist_rounds, Pos dest) : BFSPathInfo(dir, dist, dist_next, dist_rounds, dest) {
-            enemies = vector<int>();
-        }
-        CarBFSPathInfo() : BFSPathInfo() {
-            enemies = vector<int>();
-        }
-        CarBFSPathInfo(const CarBFSPathInfo& o) : BFSPathInfo(o), enemies(o.enemies) {}
-    };
-
-
     void compute_action_car(const Unit& car) {
         if (not can_move(car.id)) return set_inactive_round(car);
 
-        // TODO: Do BFS that ends when the n_units_not_already_targeted_outside_city/n_own_cars unit has been killed
-
-        // Car demands all targets in its path
-        // Next car does the same not targeting those already targeted
-        // TODO: Ensure that cars are not very close together
-
-        //int target_warriors = global_info.targetable_enemy_warriors/my_car_ids.size();
-
-        //if (car.id%my_car_ids.size() < global_info.targetable_enemy_warriors%my_car_ids.size()) ++target_warriors;
 
         PathInfo station = bfs(car, Safe, Fuel);
         PathInfo enemy = bfs(car, Safe, Enemy, Warrior);
-
-        /*
-        CarBFSPathInfo enemy;
-
-
-        if (target_warriors > 0) {
-            cerr << "CAR " << car.id << endl;
-            enemy = bfs<CarBFSPathInfo>(
-                    car,
-                    [this, &car](P pos) { return can_move_to_car(car, pos); },
-                    [target_warriors](const CarBFSPathInfo& path_info) {
-
-                        return path_info.enemies.size() >= target_warriors;
-                    },
-                    [&car, this](CarBFSPathInfo& path_info) {
-                        if (car.id == 80) {
-                            debug(path_info.dest, "visited");
-                            debug(path_info.dest, to_string(path_info.enemies.size()));
-                        }
-                    },
-                    [this](const CarBFSPathInfo& path_info_origin, CarBFSPathInfo& next) {
-                        int unit_id = cell(next.dest).id;
-
-                        if (unit_id != -1 and not is_warrior_targeted(unit_id)) {
-                            const Unit& u = unit(unit_id);
-
-                            if (u.player != me()) {
-                                next.enemies = path_info_origin.enemies;
-                                next.enemies.push_back(unit_id);
-                            }
-                        }
-                    }
-            );
-            cerr << "END CAR" << endl;
-        }
-
-        debug(car, "enemy found: " + to_string(enemy.found()));*/
 
         if (station.found()) {
             if ((not enemy.found() or enemy.dist > 4) and car.food < 85 and station.dist < 4) {
@@ -1190,9 +1130,6 @@ struct PLAYER_NAME : public Player {
 
         if (enemy.found()) {
             debug(car, "Attacking warrior");
-            /*for (int x : enemy.enemies) {
-                target_warrior(x);
-            }*/
             return action(car, enemy, 100000);
         }
 
@@ -1244,13 +1181,6 @@ struct PLAYER_NAME : public Player {
         my_car_ids = cars(me());
         my_warrior_ids = warriors(me());
     }
-
-    struct CarPreBFSPathInfo: public BFSPathInfo {
-        bool station_in_path;
-
-        CarPreBFSPathInfo(number dist, number dist_rounds, Pos dest, bool station_in_path) : BFSPathInfo({0,0}, dist, 0, dist_rounds, dest), station_in_path(station_in_path) {}
-        CarPreBFSPathInfo() : BFSPathInfo() {}
-    };
 
     void init_unitinfo() {
         global_info.targetable_enemy_warriors = 0;
@@ -1364,6 +1294,50 @@ struct PLAYER_NAME : public Player {
 
     }
 
+    /*
+    int minSpanTreeW(const Graph &G) {
+        VB U(G.size(), false);
+        Queue Q; Q.push({0,0});
+        int sumWeights = 0;
+
+        while (not Q.empty()) {
+            int w = Q.top().first;
+            int v = Q.top().second;
+            Q.pop();
+            if (not U[v]) {
+                U[v] = true;
+                sumWeights -= w;
+                for (auto e : G[v]) Q.push({-e.first, e.second});
+            }
+        }
+
+        return sumWeights;
+    }
+
+    void cluster(const vector<Pos>& X, vector<vector<Pos>>& C) {
+        vector<bool> seen(X.size(), false);
+
+        priority_queue<
+
+    }
+
+    void init_enemysets() {
+        vector<Pos> targets;
+
+        for (snumber player_id = 0; player_id < 4; ++player_id) {
+            if (player_id == me()) continue;
+
+            for (int unit_id : warriors(player_id)) {
+                const Unit& u = unit(unit_id);
+
+                if (can_move_to_simple_warrior(u.pos)) targets.push_back(u.pos);
+            }
+        }
+
+        vector<vector<Pos>> target_clusters;
+        cluster(targets, target_clusters);
+    }*/
+
     ostream* os;
 
     void round_init() {
@@ -1376,6 +1350,7 @@ struct PLAYER_NAME : public Player {
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         init_unitinfo();
+        //init_enemysets();
     }
 
     // endregion

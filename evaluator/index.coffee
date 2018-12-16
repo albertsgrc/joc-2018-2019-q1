@@ -4,7 +4,7 @@ queue = require 'queue'
 
 exec = util.promisify(exec)
 
-N_TESTS = 50
+N_TESTS = 200
 
 
 arr =
@@ -91,11 +91,14 @@ shuffle = (a) ->
   a
 
 
-test = (seed) ->
-  players = shuffle([ 'Test', 'Previous', 'Dummy', 'Dummy'])
+test = (seed, against) ->
+  players = shuffle([ 'Test', against, 'Dummy', 'Dummy'])
   score = {}
+  cmd = "./Game #{players.join(' ')} -s #{seed} -i default.cnf -o result.res"
 
-  { stderr } = await exec "./Game #{players.join(' ')} -s #{seed} -i default.cnf -o result.res"
+  console.log(cmd)
+
+  { stderr } = await exec cmd
 
   result = stderr.toString().split('\n')[-7..-4]
 
@@ -103,7 +106,7 @@ test = (seed) ->
     score[players[i]] = parseInt(s.split(' ')[-1..][0])
   )
 
-  score.Test - score.Previous
+  score.Test - score[against]
 
 printResults = (results) ->
   result = {}
@@ -118,10 +121,14 @@ do main = ->
 
   results = []
 
+  against = process.argv[2] ? "Previous"
+  console.log "Evaluating against #{against}"
+
   for i in [0...N_TESTS]
     seed = Math.round(Math.random()*20000000)
-    q.push(->
-        results.push await test(seed)
-        if results.length is N_TESTS
-          printResults(results)
-    )
+    do (seed) ->
+      q.push(->
+          results.push await test(seed, against)
+          if results.length is N_TESTS
+            printResults(results)
+      )
