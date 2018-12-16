@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cp AICancellara.cc AIPrevious.cc
+sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' AIPrevious.cc
+sed -i '' -- "s/\#define PLAYER_NAME Cancellara/\#define PLAYER_NAME Previous/g" AIPrevious.cc

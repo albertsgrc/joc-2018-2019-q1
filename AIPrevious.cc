@@ -5,7 +5,7 @@
 #include <cstring>
 #include "Player.hh"
 
-#define PLAYER_NAME Prova
+#define PLAYER_NAME Previous
 #define IS_DEBUG 0
 
 // region defines
@@ -240,8 +240,8 @@ struct PLAYER_NAME : public Player {
 
 
         switch (unit.type) {
-            case Warrior: return is_any(pos, { Desert, City, Road });
-            case Car: return can_move(unit.id) and is_any(pos, { Desert, Road });
+            case Warrior: return cell(pos).type <= City;
+            case Car: return cell(pos).type <= Road;
             default: _unreachable();
         }
     }
@@ -468,8 +468,9 @@ struct PLAYER_NAME : public Player {
 
     struct BFSPathInfo: public PathInfo {
         number dist_next_left; // Rounds left to get to the next node
+        number dist_rounds;
 
-        BFSPathInfo(D dir, number dist, number dist_next_left, Pos dest) : PathInfo(dir, dist, dest), dist_next_left(dist_next_left) {}
+        BFSPathInfo(D dir, number dist, number dist_next_left, number dist_rounds, Pos dest) : PathInfo(dir, dist, dest), dist_next_left(dist_next_left), dist_rounds(dist_rounds) {}
         BFSPathInfo() : PathInfo() {}
     };
 
@@ -480,20 +481,20 @@ struct PLAYER_NAME : public Player {
             const function<bool(P)>& is_dest,
             const function<number(P, number)>& dist,
             number max_dist = USHRT_MAX,
-            bool first_allowed = false)
+            bool first_allowed = true)
     {
-        if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, initial };
+        if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, 0, initial };
 
         queue<BFSPathInfo> queue;
         memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
 
-        number dist_initial_left = dist(initial, 0);
         for (D dir : dirs) {
             Pos dest = initial + dir;
 
             if (can_go(dest) and not is_taken(dest)) {
                 seen[dest.i][dest.j] = true;
-                queue.push(BFSPathInfo(dir, dist_initial_left, dist_initial_left, dest));
+                number dist_initial_left = dist(dest, 1);
+                queue.push(BFSPathInfo(dir, 1, dist_initial_left, dist_initial_left, dest));
             }
         }
 
@@ -506,17 +507,18 @@ struct PLAYER_NAME : public Player {
                 continue;
             }
 
+
             for (D dir : dirs) {
                 Pos dest = pathInfoOrigin.dest + dir;
 
                 if (can_go(dest) and not seen[dest.i][dest.j]) {
                     seen[dest.i][dest.j] = true;
 
-                    number dist_next = dist(pathInfoOrigin.dest, pathInfoOrigin.dist);
-                    number total_dist = pathInfoOrigin.dist + dist_next;
+                    number dist_next = dist(dest, pathInfoOrigin.dist + 1);
+                    number total_dist_rounds = pathInfoOrigin.dist_rounds + dist_next;
 
-                    if (total_dist <= max_dist) {
-                        queue.push(BFSPathInfo(pathInfoOrigin.dir, total_dist, dist_next, dest));
+                    if (total_dist_rounds <= max_dist) {
+                        queue.push(BFSPathInfo(pathInfoOrigin.dir, pathInfoOrigin.dist + 1, dist_next, total_dist_rounds, dest));
                     }
                 }
             }

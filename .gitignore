@@ -6,3 +6,6 @@ Game
 Makefile.deps
 .DS_Store
 AIGod*
+AITest.cc
+debug.res
+re
