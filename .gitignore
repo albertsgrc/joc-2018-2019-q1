@@ -8,4 +8,4 @@ Makefile.deps
 AIGod*
 AITest.cc
 debug.res
-re
+result.res
