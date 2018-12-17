@@ -1399,8 +1399,6 @@ struct PLAYER_NAME : public Player {
         }
     }
 
-    ostream* os;
-
     void round_init() {
         get_my_units();
 
@@ -1411,7 +1409,7 @@ struct PLAYER_NAME : public Player {
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         init_unitinfo();
-        init_enemysets();
+        //init_enemysets();
     }
 
     // endregion
@@ -1601,6 +1599,7 @@ struct PLAYER_NAME : public Player {
 
     #if IS_DEBUG
     string debug_messages[60][60];
+    ostream* os;
 
     void debug_message(P pos, const string& message) {
         if (me() == 0)
