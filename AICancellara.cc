@@ -4,6 +4,7 @@
 #include <functional>
 #include <cstring>
 #include <unordered_map>
+#include <unordered_set>
 #include "Player.hh"
 
 #define PLAYER_NAME Cancellara
@@ -1294,31 +1295,82 @@ struct PLAYER_NAME : public Player {
 
     }
 
-    /*
-    int minSpanTreeW(const Graph &G) {
-        VB U(G.size(), false);
-        Queue Q; Q.push({0,0});
-        int sumWeights = 0;
+    float distance(P a, P b) {
+        return sqrt((a.i - b.i)*(a.i - b.i) + (a.j - b.j)*(a.j - b.j));
+    }
 
-        while (not Q.empty()) {
-            int w = Q.top().first;
-            int v = Q.top().second;
-            Q.pop();
-            if (not U[v]) {
-                U[v] = true;
-                sumWeights -= w;
-                for (auto e : G[v]) Q.push({-e.first, e.second});
+    typedef pair<float, pair<snumber, snumber>> Edge;
+
+    void cluster(const vector<Pos>& X, vector<vector<Pos>>& C, int clusters) {
+        cerr << X.size() << endl;
+        vector<bool> seen_msp(X.size(), false);
+
+        priority_queue<Edge, vector<Edge>, greater<Edge>> Q_msp;
+        priority_queue<Edge> H;
+
+        if (X.size()) Q_msp.push({ 0, { 0,0 }});
+
+        vector<unordered_set<int>> G(X.size(), unordered_set<int>());
+
+        while (not Q_msp.empty()) {
+            Edge e = Q_msp.top();
+            snumber u = e.second.first;
+            snumber v = e.second.second;
+            Q_msp.pop();
+
+
+            if (not seen_msp[v]) {
+                seen_msp[v] = true;
+
+                G[u].insert(v);
+                G[v].insert(u);
+                H.push(e);
+
+                for (snumber t = 0; t < X.size(); ++t) {
+                    Q_msp.push({ distance(X[v], X[t]), { v, t }});
+                }
             }
         }
 
-        return sumWeights;
-    }
+        int remove_edges = clusters - 1;
+        while (not H.empty() and remove_edges > 0) {
+            Edge e = H.top();
+            H.pop();
 
-    void cluster(const vector<Pos>& X, vector<vector<Pos>>& C) {
-        vector<bool> seen(X.size(), false);
+            G[e.second.first].erase(e.second.second);
+            G[e.second.second].erase(e.second.first);
 
-        priority_queue<
+            --remove_edges;
+        }
 
+        vector<bool> seen_cc(X.size(), false);
+        queue<int> Q_cc;
+
+        C = vector<vector<Pos>>(clusters, vector<Pos>());
+        int cluster_index = 0;
+
+        for (int i = 0; i < G.size(); ++i) {
+            if (not seen_cc[i]) {
+                Q_cc.push(i);
+                seen_cc[i] = true;
+
+                while (not Q_cc.empty()) {
+                    int v = Q_cc.front();
+                    Q_cc.pop();
+
+                    C[cluster_index].push_back(X[v]);
+
+                    for (int x : G[v]) {
+                        if (not seen_cc[x]) {
+                            seen_cc[x] = true;
+                            Q_cc.push(x);
+                        }
+                    }
+                }
+
+                ++cluster_index;
+            }
+        }
     }
 
     void init_enemysets() {
@@ -1330,13 +1382,22 @@ struct PLAYER_NAME : public Player {
             for (int unit_id : warriors(player_id)) {
                 const Unit& u = unit(unit_id);
 
-                if (can_move_to_simple_warrior(u.pos)) targets.push_back(u.pos);
+                if (can_move_to_simple_car(u.pos)) targets.push_back(u.pos);
             }
         }
 
         vector<vector<Pos>> target_clusters;
-        cluster(targets, target_clusters);
-    }*/
+        cluster(targets, target_clusters, my_car_ids.size());
+
+        int i = 1;
+        for (const vector<Pos>& v : target_clusters) {
+            cerr << "Cluster " << i++ << ":" << endl;
+
+            for (P pos : v) {
+                cerr << pos << endl;
+            }
+        }
+    }
 
     ostream* os;
 
@@ -1350,7 +1411,7 @@ struct PLAYER_NAME : public Player {
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         init_unitinfo();
-        //init_enemysets();
+        init_enemysets();
     }
 
     // endregion
