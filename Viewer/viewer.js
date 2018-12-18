@@ -235,22 +235,38 @@ function parseData(raw_data_str) {
 }
 
 function parseDebug(debug_data) {
-  var debugs = Array(500).fill()
-      .map(function() {
-        return Array(60).fill().map(function() { return Array(60).fill(); })})
+  var debugs = Array(500)
+    .fill()
+    .map(function() {
+      return Array(60)
+        .fill()
+        .map(function() {
+          return Array(60).fill();
+        });
+    });
 
-  debug_data.split('round').filter(function(round) { return round.length; }).forEach(function(roundData, round) {
-    var lines = roundData.split('\n').slice(1, -1).join('\n').split("####\n").slice(0, -1);
-    lines.forEach(function(line) {
-      var v = line.split(' ');
-      var i = parseInt(v[0]);
-      var j = parseInt(v[1]);
-
-      var message = v.slice(2).join(' ');
-
-      debugs[round][i][j] = message;
+  debug_data
+    .split("round")
+    .filter(function(round) {
+      return round.length;
     })
-  });
+    .forEach(function(roundData, round) {
+      var lines = roundData
+        .split("\n")
+        .slice(1, -1)
+        .join("\n")
+        .split("####\n")
+        .slice(0, -1);
+      lines.forEach(function(line) {
+        var v = line.split(" ");
+        var i = parseInt(v[0]);
+        var j = parseInt(v[1]);
+
+        var message = v.slice(2).join(" ");
+
+        debugs[round][i][j] = message;
+      });
+    });
 
   return debugs;
 }
@@ -266,24 +282,24 @@ function initGame(raw_data, debug_data) {
   gamePaused = false;
   gamePreview = true;
 
-  var debugs = parseDebug(debug_data);
+  var debugs = debug_data ? parseDebug(debug_data) : null;
 
   // Canvas element.
   canvas = document.getElementById("myCanvas");
 
   canvas.onmousemove = function(e) {
-
     // important: correct mouse position:
     var rect = this.getBoundingClientRect(),
-        x = e.clientX - rect.left,
-        y = e.clientY - rect.top;
+      x = e.clientX - rect.left,
+      y = e.clientY - rect.top;
 
-    var j = Math.max(0, Math.floor(60*x/(rect.right - rect.left)));
-    var i = Math.max(0, Math.floor(60*y/(rect.bottom - rect.top)));
+    var j = Math.max(0, Math.floor((60 * x) / (rect.right - rect.left)));
+    var i = Math.max(0, Math.floor((60 * y) / (rect.bottom - rect.top)));
 
     var position = "(" + i + "," + j + ")\n";
-    document.getElementById("debug").innerText = position + (debugs[actRound][i][j] ? debugs[actRound][i][j] : "");
-
+    document.getElementById("debug").innerText =
+      position +
+      (debugs ? (debugs[actRound][i][j] ? debugs[actRound][i][j] : "") : "");
   };
 
   context = canvas.getContext("2d");
@@ -825,9 +841,9 @@ function init() {
     document.getElementById("loadingdiv").style.display = "";
     // Load the given game.
     loadFile(game, function(text) {
-      loadFile('/debug.res', function(debugText) {
+      loadFile("/debug.res", function(debugText) {
         initGame(text, debugText);
-      })
+      });
     });
   }
 }
