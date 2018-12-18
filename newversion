@@ -1,5 +1,11 @@
 #!/bin/bash
 
-cp AICancellara.cc AIPrevious.cc
-sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' AIPrevious.cc
-sed -i '' -- "s/\#define PLAYER_NAME Cancellara/\#define PLAYER_NAME Previous/g" AIPrevious.cc
+if [ $# -eq 0 ]
+  then
+    echo "No arguments supplied"
+    exit 1
+fi
+
+cp AICancellara.cc AICancellara-$1.cc
+sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' AICancellara-$1.cc
+sed -i '' -- "s/\#define PLAYER_NAME Cancellara/\#define PLAYER_NAME Cancellara_$1/g" AICancellara-$1.cc
