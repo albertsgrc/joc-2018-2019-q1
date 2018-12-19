@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 project(joc_2018_2019_q1)
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -DDEBUG -D_GLIBCXX_DEBUG -g")
-#set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -Ofast -march=native -g")
+#set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -DDEBUG -D_GLIBCXX_DEBUG -g")
+set(CMAKE_CXX_FLAGS "-Wall -Wno-unused-variable -Ofast -march=native -g")
 
 include_directories(.)
 
@@ -12,7 +12,7 @@ add_executable(joc_2018_2019_q1
         Action.hh
         AIDemo.cc
         AINull.cc
-        AICancellara.cc
+        AIQuim.cc
         Board.cc
         Board.hh
         Game.cc
@@ -36,4 +36,6 @@ add_executable(joc_2018_2019_q1
         Utils.hh
         AIDummy.o
         AIJutge.cc
-        AIPrevious.cc)
+        AIPrevious.cc
+        AIQuim-v1.cc
+        AIQuim-v2.cc)

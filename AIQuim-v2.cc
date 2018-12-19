@@ -7,8 +7,8 @@
 #include <unordered_set>
 #include "Player.hh"
 
-#define PLAYER_NAME Cancellara
-#define IS_DEBUG 1
+#define PLAYER_NAME Quim_v2
+#define IS_DEBUG 0
 
 // region defines
 // ██████╗ ███████╗███████╗██╗███╗   ██╗███████╗███████╗
@@ -1302,7 +1302,6 @@ struct PLAYER_NAME : public Player {
     typedef pair<float, pair<snumber, snumber>> Edge;
 
     void cluster(const vector<Pos>& X, vector<vector<Pos>>& C, int clusters) {
-        cerr << X.size() << endl;
         vector<bool> seen_msp(X.size(), false);
 
         priority_queue<Edge, vector<Edge>, greater<Edge>> Q_msp;
@@ -1388,16 +1387,9 @@ struct PLAYER_NAME : public Player {
 
         vector<vector<Pos>> target_clusters;
         cluster(targets, target_clusters, my_car_ids.size());
-
-        int i = 1;
-        for (const vector<Pos>& v : target_clusters) {
-            cerr << "Cluster " << i++ << ":" << endl;
-
-            for (P pos : v) {
-                cerr << pos << endl;
-            }
-        }
     }
+
+    ostream* os;
 
     void round_init() {
         get_my_units();
@@ -1409,7 +1401,7 @@ struct PLAYER_NAME : public Player {
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         init_unitinfo();
-        //init_enemysets();
+        init_enemysets();
     }
 
     // endregion
@@ -1599,7 +1591,6 @@ struct PLAYER_NAME : public Player {
 
     #if IS_DEBUG
     string debug_messages[60][60];
-    ostream* os;
 
     void debug_message(P pos, const string& message) {
         if (me() == 0)
@@ -1645,11 +1636,6 @@ struct PLAYER_NAME : public Player {
             process_actions();
             commanded = previous_units_to_command - units_to_command.size();
         } while(not units_to_command.empty() and commanded > 0);
-
-
-        if (!units_to_command.empty())
-            for (int x : units_to_command)
-                cerr << ((unit(x).type == Car) ? "car" : "warrior") << ' ' << unit(x).pos << endl;
 
         //ensure(units_to_command.empty(), "Some units not commanded!")
         units_to_command.clear();

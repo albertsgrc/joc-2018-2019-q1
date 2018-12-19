@@ -6,6 +6,6 @@ if [ $# -eq 0 ]
     exit 1
 fi
 
-cp AICancellara.cc AICancellara-$1.cc
-sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' AICancellara-$1.cc
-sed -i '' -- "s/\#define PLAYER_NAME Cancellara/\#define PLAYER_NAME Cancellara_$1/g" AICancellara-$1.cc
+cp AIQuim.cc AIQuim-$1.cc
+sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' AIQuim-$1.cc
+sed -i '' -- "s/\#define PLAYER_NAME Quim/\#define PLAYER_NAME Quim_$1/g" AIQuim-$1.cc

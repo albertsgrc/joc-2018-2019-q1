@@ -4,10 +4,9 @@
 #include <functional>
 #include <cstring>
 #include <unordered_map>
-#include <unordered_set>
 #include "Player.hh"
 
-#define PLAYER_NAME Cancellara_v1
+#define PLAYER_NAME Quim_v1
 #define IS_DEBUG 0
 
 // region defines
@@ -26,12 +25,6 @@
 #endif
 
 #define cinfo (*this)
-
-#if IS_DEBUG
-    #define debug(p, message) debug_message(p, message)
-#else
-    #define debug(p, message) {}
-#endif
 
 // endregion
 
@@ -152,7 +145,6 @@ struct PLAYER_NAME : public Player {
     };
 
     struct PathInfo;
-    struct CarBFSPathInfo;
 
     // endregion
 
@@ -249,15 +241,6 @@ struct PLAYER_NAME : public Player {
         return pos_ok(pos) && (cell_type[pos.i][pos.j] <= Road);
     }
 
-    inline bool can_move_to_car(const Unit& car, P pos) {
-        return can_move_to_simple_car(pos) and can_demand(car, pos) and not (is_on(pos, Enemy, Car) or can_car_reach_before_escape(car, pos));
-    }
-
-    inline bool can_car_reach_before_escape(const Unit& car, P pos) {
-        if (rounds_to_move_car(car, car.pos, 0) == 1) return cinfo[pos].enemy_cars_dist_1 > 0;
-        else return cinfo[pos].enemy_cars > 0;
-    }
-
     // Assumes round()%4 == me()
     // Assumes pos is adjacent to id
     inline bool can_move_to(const Unit& unit, P pos, Safety safety, UseState useState = DoesntMatterTaken) {
@@ -270,7 +253,7 @@ struct PLAYER_NAME : public Player {
 
         if (is_on(pos, Own)) return false;
 
-        if (unit.type == Car and (is_on(pos, Enemy, Car) or can_car_reach_before_escape(unit, pos))) return false;
+        if (unit.type == Car and (is_on(pos, Enemy, Car) or cinfo[pos].enemy_cars > 0)) return false;
 
         if (unit.type == Warrior and safety == Safe and cinfo[pos].enemy_warriors > 0) return false;
 
@@ -434,6 +417,7 @@ struct PLAYER_NAME : public Player {
         float importance;
 
         Action(snumber unit_id, Dir dir, float importance) : unit_id(unit_id), dir(dir), importance(importance) {}
+
         bool operator<(const Action& other) const {
             return importance < other.importance;
         }
@@ -442,7 +426,6 @@ struct PLAYER_NAME : public Player {
     priority_queue<Action> actions_queue;
     set<snumber> units_to_command;
     unordered_map<number, snumber> used_positions;
-    set<snumber> targeted_warriors;
 
     // Call this method instead of command
     void action(snumber unit_id, Dir dir, float importance) {
@@ -455,17 +438,11 @@ struct PLAYER_NAME : public Player {
     }
 
     void action(const Unit& unit, D dir, float importance) {
-        ostringstream ss;
-        ss << "Moving to " << dir;
-        debug(unit, ss.str());
         action(unit.id, Dir(dir), importance);
     }
 
 
     void action(const Unit& unit, const PathInfo& info, float importance) {
-        ostringstream ss;
-        ss << "Going to " << info;
-        debug(unit, ss.str());
         action(unit.id, Dir(info.dir), importance);
     }
 
@@ -482,11 +459,15 @@ struct PLAYER_NAME : public Player {
             Pos actual = u.pos;
             Pos destination = actual + action.dir;
 
+            // TODO: If there is an enemy in the destination and it's not going to die the current position must also be used
+
             auto insertion = used_positions.insert({ ~destination, 1 });
 
             if (insertion.second) {
                 // Was not a used position, perform command
-                ensure(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me(), "attacking own unit!");
+                //ensure(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me(), "attacking own unit!");
+
+                //cerr << "Unit " << action.unit_id << " to " << destination << endl;
                 action_command(action);
             }
             else if (u.type == Warrior and not is_thunderdome(actual, destination) and is_on(destination, Enemy, Warrior)) {
@@ -500,14 +481,6 @@ struct PLAYER_NAME : public Player {
                 }
             }
         }
-    }
-
-    void target_warrior(snumber id) {
-        targeted_warriors.insert(id);
-    }
-
-    bool is_warrior_targeted(snumber id) {
-        return in(targeted_warriors, id);
     }
 
     void set_inactive_round(const Unit &unit) {
@@ -555,7 +528,6 @@ struct PLAYER_NAME : public Player {
         Pos dest; // not useful
 
         PathInfo(D dir, number dist, Pos dest) : dir(dir), dist(dist), dest(dest) {}
-        PathInfo(const PathInfo& o) : dir(o.dir), dist(o.dist), dest(o.dest) {}
         PathInfo() : dist(USHRT_MAX) {}
 
         bool found() { // Returns whether a path was found
@@ -570,12 +542,11 @@ struct PLAYER_NAME : public Player {
     };
 
     struct BFSPathInfo: public PathInfo {
-        number dist_next;
         number dist_next_left; // Rounds left to get to the next node
+        number dist_next;
         number dist_rounds;
 
-        BFSPathInfo(D dir, number dist, number dist_next, number dist_rounds, Pos dest) : PathInfo(dir, dist, dest), dist_next(dist_next), dist_next_left(dist_next), dist_rounds(dist_rounds) {}
-        BFSPathInfo(const BFSPathInfo& o) : PathInfo(o), dist_next(o.dist_next), dist_next_left(o.dist_next_left), dist_rounds(o.dist_rounds) {}
+        BFSPathInfo(D dir, number dist, number dist_next, number dist_rounds, Pos dest) : PathInfo(dir, dist, dest), dist_next_left(dist_next), dist_next(dist_next), dist_rounds(dist_rounds) {}
         BFSPathInfo() : PathInfo() {}
 
         friend ostream& operator<<(ostream& o, const BFSPathInfo& p) {
@@ -585,21 +556,19 @@ struct PLAYER_NAME : public Player {
         }
     };
 
-    template<typename T, typename std::enable_if<std::is_base_of<BFSPathInfo, T>::value>::type* = nullptr>
-    T bfs(
+    // This should never be called
+    BFSPathInfo bfs(
             P initial,
             const function<bool(P)>& can_go,
-            const function<bool(const T&)>& is_dest,
+            const function<bool(P)>& is_dest,
             const function<number(P, number)>& dist,
-            const function<void(T&)>& visit = [](const T& p){},
-            const function<void(const T&, T&)>& go_to = [](const T& a, T& b){},
+            const function<void(BFSPathInfo&)>& visit = [](BFSPathInfo& p) {},
             number max_dist = USHRT_MAX,
             bool first_allowed = true)
     {
-        T first_pathinfo =  { {0,0}, 0, 0, 0, initial };
-        if (is_dest(first_pathinfo) and first_allowed) return first_pathinfo;
+        if (is_dest(initial) and first_allowed) return { {0,0}, 0, 0, 0, initial };
 
-        queue<T> queue;
+        queue<BFSPathInfo> queue;
         memset(seen, 0, sizeof seen); seen[initial.i][initial.j] = true;
 
         number dist_first = dist(initial, 0);
@@ -610,39 +579,33 @@ struct PLAYER_NAME : public Player {
             if (can_go(dest)) {
                 seen[dest.i][dest.j] = true;
                 number dist_initial_left = dist(dest, 1);
-
-                T next(dir, 1, dist_initial_left, dist_first, dest);
-                go_to(first_pathinfo, next);
-
-                queue.push(next);
+                queue.push(BFSPathInfo(dir, 1, dist_initial_left, dist_first, dest));
             }
         }
 
-        while (not queue.empty() and not is_dest(queue.front())) {
-            T path_info_origin = queue.front();
+        while (not queue.empty() and not is_dest(queue.front().dest)) {
+            BFSPathInfo pathInfoOrigin = queue.front();
             queue.pop();
 
-            if (--path_info_origin.dist_next_left > 0) {
-                queue.push(path_info_origin);
+            if (--pathInfoOrigin.dist_next_left > 0) {
+                queue.push(pathInfoOrigin);
                 continue;
             }
 
-            visit(path_info_origin);
+            visit(pathInfoOrigin);
 
 
             for (D dir : dirs) {
-                Pos dest = path_info_origin.dest + dir;
+                Pos dest = pathInfoOrigin.dest + dir;
 
                 if (can_go(dest) and not seen[dest.i][dest.j]) {
                     seen[dest.i][dest.j] = true;
 
-                    number dist_next = dist(dest, path_info_origin.dist + 1);
-                    number total_dist_rounds = path_info_origin.dist_rounds + path_info_origin.dist_next;
+                    number dist_next = dist(dest, pathInfoOrigin.dist + 1);
+                    number total_dist_rounds = pathInfoOrigin.dist_rounds + pathInfoOrigin.dist_next;
 
                     if (total_dist_rounds <= max_dist) {
-                        T next(path_info_origin.dir, path_info_origin.dist + 1, dist_next, total_dist_rounds, dest);
-                        go_to(path_info_origin, next);
-                        queue.push(next);
+                        queue.push(BFSPathInfo(pathInfoOrigin.dir, pathInfoOrigin.dist + 1, dist_next, total_dist_rounds, dest));
                     }
                 }
             }
@@ -653,29 +616,40 @@ struct PLAYER_NAME : public Player {
 
     }
 
-    template<typename T, typename std::enable_if<std::is_base_of<BFSPathInfo, T>::value>::type* = nullptr>
-    T bfs(
+    PathInfo bfs(
             const Unit& unit,
             const function<bool(P)>& can_go,
-            const function<bool(const T&)>& is_dest,
-            const function<void(T&)>& visit = [](const T& p){},
-            const function<void(const T&, T&)>& go_to = [](const T& a, T& b){},
-
-            number max_dist = USHRT_MAX)
+            const function<bool(P)>& is_dest)
     {
-        if (unit.type == Warrior) return bfs<T>(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; }, visit);
+        if (unit.type == Warrior) return bfs(unit.pos, can_go, is_dest, [](P pos, number distance_travelled) { return 1; });
         else return
-            bfs<T>(
+            bfs(
                 unit.pos,
                 can_go,
                 is_dest,
                 [&unit, this](P pos, number distance_travelled) {
                     return rounds_to_move_car(unit, pos, distance_travelled);
-                },
-                visit,
-                go_to,
-                max_dist
+                }
             );
+    }
+
+    PathInfo bfs(
+            const Unit& unit,
+            const function<bool(P)>& is_dest,
+            Safety safety,
+            number max_dist = USHRT_MAX,
+            bool first_allowed = true)
+    {
+        return bfs(unit, [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); }, is_dest);
+    }
+
+
+    PathInfo bfs(const Unit& unit, P dest, Safety safety) {
+        return bfs(
+                unit,
+                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
+                [&dest](P pos) { return dest == pos; }
+                );
     }
 
     PathInfo bfs(
@@ -684,21 +658,36 @@ struct PLAYER_NAME : public Player {
             Owner owner,
             UnitType type = UnitTypeSize)
     {
-        return bfs<BFSPathInfo>(
+        return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                [owner, type, this](const BFSPathInfo& pathInfo) { return is_on(pathInfo.dest, owner, type); }
+                [owner, type, this](P pos) { return is_on(pos, owner, type); }
+
+        );
+    }
+
+    PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, CellType type) {
+        function<bool(P)> is_dest;
+
+        if (adjacency == Adjacent) is_dest = [type, this](P pos) { return is_adjacent_to(pos, type); };
+        else is_dest = [type, this](P pos) { return is(pos, type); };
+
+
+        return bfs(
+                unit,
+                [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
+                is_dest
         );
     }
 
     PathInfo bfs(const Unit& unit, Safety safety, Adjacency adjacency, Owner owner) {
-        function<bool(const BFSPathInfo&)> is_dest;
+        function<bool(P)> is_dest;
 
-        if (adjacency == Adjacent) is_dest = [owner, this](const BFSPathInfo& pathInfo) { return is_adjacent_to(pathInfo.dest, owner); };
-        else is_dest = [owner, this](const BFSPathInfo& pathInfo) { return is(pathInfo.dest, owner); };
+        if (adjacency == Adjacent) is_dest = [owner, this](P pos) { return is_adjacent_to(pos, owner); };
+        else is_dest = [owner, this](P pos) { return is(pos, owner); };
 
 
-        return bfs<BFSPathInfo>(
+        return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest
@@ -706,13 +695,13 @@ struct PLAYER_NAME : public Player {
     }
 
     PathInfo bfs(const Unit& unit, Safety safety, Resource resource) {
-        function<bool(const BFSPathInfo&)> is_dest;
+        function<bool(P)> is_dest;
 
-        if (resource == Drink) is_dest = [this](const BFSPathInfo& pathInfo) { return cinfo[pathInfo.dest].gives_water; };
-        else is_dest = [this](const BFSPathInfo& pathInfo) { return cinfo[pathInfo.dest].gives_fuel; };
+        if (resource == Drink) is_dest = [this](P pos) { return cinfo[pos].gives_water; };
+        else is_dest = [this](P pos) { return cinfo[pos].gives_fuel; };
 
 
-        return bfs<BFSPathInfo>(
+        return bfs(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
                 is_dest
@@ -835,7 +824,6 @@ struct PLAYER_NAME : public Player {
         snumber enemy_warriors_water = 0;
         snumber enemy_warriors_life = 0;
         snumber enemy_cars = 0;
-        snumber enemy_cars_dist_1 = 0;
         number enemy_cars_dist = 0;
 
         snumber own_warriors = 0;
@@ -894,12 +882,6 @@ struct PLAYER_NAME : public Player {
 
     CellInfo cell_info[60][60];
 
-    struct GlobalInfo {
-        snumber targetable_enemy_warriors = 0;
-    };
-
-    GlobalInfo global_info;
-
     // endregion
 
 
@@ -926,14 +908,13 @@ struct PLAYER_NAME : public Player {
     }
 
     Direction choose_best_dir_warrior(const Unit& warrior, CellType type) {
-        // TODO: If you are threatened and every other position is also threatened, attack the easiest threat
+        // TODO: Implement sort on copied dirs array (including None position) with comparison function, choose first available
 
         int max_score = INT_MIN;
         Direction best_dir = { 0, 0 };
 
         for (D dir : c_dirs_all) {
-            P dest = warrior.pos + dir;
-            if (can_move_to_simple_warrior(dest) and can_demand(warrior, dest)) {
+            if (can_move_to_simple_warrior(warrior.pos + dir)) {
                 int score = score_dir_warrior(warrior, dir, type);
 
                 if (score > max_score) {
@@ -942,6 +923,8 @@ struct PLAYER_NAME : public Player {
                 }
             }
         }
+
+        //cerr << max_score << endl;
 
         return best_dir;
     }
@@ -984,7 +967,7 @@ struct PLAYER_NAME : public Player {
         for (D dir : dirs) {
             P dest = warrior.pos + dir;
 
-            if (can_move_to_simple_warrior(dest) and is_on(dest, Enemy, Warrior)) {
+            if (is_on(dest, Enemy, Warrior)) {
                 if (is_thunderdome(warrior.pos, dest) and can_demand(warrior, dest)) {
                     float prob = win_probability_warrior_thunderdome(warrior, unit(cell(dest).id));
 
@@ -999,33 +982,42 @@ struct PLAYER_NAME : public Player {
 
         if (found_thunderdome) {
             if (max_probability >= 0.55) {
-                debug(warrior, "attacking thunderdome with probability " + to_string(max_probability));
+                //cerr << "warrior " << warrior.pos << " will fight thunderdome" << endl;
                 return action(warrior, max_probability_dir, warrior.water*10);
             }
             else {
-                debug(warrior, "fleeing from thunderdome with probability: " + to_string(max_probability));
-                return action(warrior, choose_best_dir_warrior(warrior, City), warrior.water*10);
+                //cerr << "warrior " << warrior.pos << " fleeing from thunderdome" << endl;
+                return action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*100);
             }
         }
         else {
             // TODO: If warrior is on a city, and the enemy is on the outside, and has less water, let him in
 
+            // TODO: See if the situation is favorable based on
+            //        snumber enemy_warriors = 0;
+            //        snumber enemy_warriors_water = 0;
+            //        snumber enemy_warriors_life = 0;
+            //        snumber enemy_cars = 0;
+            //
+            //        snumber own_warriors = 0;
+            //        snumber own_warriors_water = 0;
+            //        snumber own_warriors_life = 0;
+            //        snumber own_cars = 0;
+            // if favorable, attack
 
             // TODO: Simulate current situation
-            // TODO: Do not attack if the other will kill us first
-            // TODO: The following if is useless
             if (unit_life(warrior) <= 6*cinfo[warrior.pos].enemy_warriors + 3) {
                 number total_own_attack = 0;
 
                 for (D dir : dirs) {
                     P dest = warrior.pos + dir;
-                    if (can_move_to_simple_warrior(dest) and is_on(dest, Enemy, Warrior)) {
+                    if (is_on(dest, Enemy, Warrior)) {
                         total_own_attack += cinfo[dest].own_warriors*6;
                     }
                 }
 
                 if (cinfo[warrior.pos].enemy_warriors_life > total_own_attack) {
-                    debug(warrior, "fleeing from warrior threat because he's about to die");
+                    //cerr << "warrior " << warrior.pos << " fleeing from warrior threat because he's about to die" << endl;
                     return action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*100);
                 }
             }
@@ -1037,7 +1029,7 @@ struct PLAYER_NAME : public Player {
             for (D dir : dirs) {
                 P dest = warrior.pos + dir;
 
-                if (can_move_to_simple_warrior(dest) and can_demand(warrior, dest) and is_on(dest, Enemy, Warrior)) {
+                if (can_demand(warrior, dest) and is_on(dest, Enemy, Warrior)) {
                     number own_units = cinfo[dest].own_warriors;
                     number score = own_units*6 - unit_life(unit_pos(dest));
 
@@ -1051,11 +1043,11 @@ struct PLAYER_NAME : public Player {
             }
 
             if (found and max_own_units < cinfo[warrior.pos].enemy_warriors) {
-                debug(warrior, "fleeing from warrior threat because its not favorable");
+                //cerr << "warrior " << warrior.pos << " fleeing from warrior threat because its not favorable" << endl;
                 return action(warrior, choose_best_dir_warrior(warrior, City), unit_life(warrior)*100);
             }
             else {
-                debug(warrior, "attacking other warrior");
+                //cerr << "warrior" << warrior.pos << " attacking other warrior" << endl;
                 return action(warrior, best_dir, 1);
             }
 
@@ -1072,11 +1064,11 @@ struct PLAYER_NAME : public Player {
             }*/
 
             // TODO: Go on positions which have soldiers at close distance
-            debug(warrior, "Stay in city");
+            //cerr << "Warrior " << warrior.pos << " stay in city" << endl;
             action(warrior, None, 50000);
         }
         else {
-            debug(warrior, "Going to city");
+            //cerr << "Warrior " << warrior.pos << " going to city" << endl;
             action(warrior, choose_best_dir_warrior(warrior, City), 1);
             // Not in a city
             // TODO: Decide where to go
@@ -1086,11 +1078,11 @@ struct PLAYER_NAME : public Player {
 
 
     void compute_action_warrior(const Unit& warrior) {
-        debug(warrior, "Food: " + to_string(warrior.food) + ", Water: " + to_string(warrior.water));
+        //cerr << "Warrior " << warrior.id << ": " << warrior.food << ' ' << warrior.water << endl;
         const CellInfo& info = cinfo[warrior.pos];
 
         if (info.enemy_cars > 0) {
-            debug(warrior, "escape from car");
+            //cerr << "escape " << warrior.pos << " from car bro!" << endl;
             handle_warrior_escape_from_car(warrior);
         }
         else if (info.enemy_warriors > 0) {
@@ -1101,7 +1093,7 @@ struct PLAYER_NAME : public Player {
 
             // Look for water
             if (should_go_for_water(warrior)) {
-                debug(warrior, "going for water");
+                //cerr << "warrior " << warrior.pos << " going for water" << endl;
                 action(warrior, choose_best_dir_warrior(warrior, Water), 40 - warrior.water);
             }
             else { // Go to city
@@ -1110,38 +1102,43 @@ struct PLAYER_NAME : public Player {
         }
     }
 
+
     void compute_action_car(const Unit& car) {
         if (not can_move(car.id)) return set_inactive_round(car);
 
+        // TODO: Do BFS that ends when the n_units_not_already_targeted_outside_city/n_own_cars unit has been killed
+
+        // Car demands all targets in its path
+        // Next car does the same not targeting those already targeted
+        // TODO: Ensure that cars are not very close together
 
         PathInfo station = bfs(car, Safe, Fuel);
         PathInfo enemy = bfs(car, Safe, Enemy, Warrior);
 
         if (station.found()) {
             if ((not enemy.found() or enemy.dist > 4) and car.food < 85 and station.dist < 4) {
-                debug(car, "going for station because it's near");
-                return action(car, station, 2);
+                //cerr << "car " << car.pos << "going for station because it's near" << endl;
+                return action(car, station.dir, 2);
             }
             else if ((not enemy.found() or enemy.dist > 1) and car.food - station.dist <= 0) {
-                debug(car, "going for station because it's out of gas");
-                return action(car, station, 2);
+                //cerr << "car " << car.pos << " going for station because it's out of gas " << station.dir << ' ' << car.food << ' ' << station.dist << endl;
+                return action(car, station.dir, 2);
             }
         }
 
 
         if (enemy.found()) {
-            debug(car, "Attacking warrior");
-            return action(car, enemy, 100000);
+            //cerr << "car " << car.pos << " attacking " << enemy.dir << ' ' << enemy.dist << endl;
+            return action(car, enemy.dir, 100000);
         }
 
         PathInfo enemy_city = bfs(car, Safe, Adjacent, Enemy);
 
         if (enemy_city.found()) {
-            debug(car, "Going to enemy city");
-            return action(car, enemy_city, 1);
+            return action(car, enemy_city.dir, 1);
         }
 
-        debug(car, "Doing nothing");
+        //cerr << "car " << car.pos << "doing nothing" << endl;
 
         return action(car, None, 600000);
     }
@@ -1183,9 +1180,14 @@ struct PLAYER_NAME : public Player {
         my_warrior_ids = warriors(me());
     }
 
-    void init_unitinfo() {
-        global_info.targetable_enemy_warriors = 0;
+    struct CarPreBFSPathInfo: public BFSPathInfo {
+        bool station_in_path;
 
+        CarPreBFSPathInfo(number dist, number dist_rounds, Pos dest, bool station_in_path) : BFSPathInfo({0,0}, dist, 0, dist_rounds, dest), station_in_path(station_in_path) {}
+        CarPreBFSPathInfo() : BFSPathInfo() {}
+    };
+
+    void init_unitinfo() {
         for (int i = 0; i < rows(); ++i) {
             for (int j = 0; j < cols(); ++j) {
                 Pos pos(i, j);
@@ -1195,7 +1197,6 @@ struct PLAYER_NAME : public Player {
                 cinfo[pos].enemy_warriors_life = 0;
                 cinfo[pos].enemy_cars = 0;
                 cinfo[pos].enemy_cars_dist = 0;
-                cinfo[pos].enemy_cars_dist_1 = 0;
                 cinfo[pos].own_cars = 0;
                 cinfo[pos].own_warriors = 0;
                 cinfo[pos].own_warriors_life = 0;
@@ -1222,14 +1223,16 @@ struct PLAYER_NAME : public Player {
                 for (int unit_id : cars(player_id)) {
                     const Unit& u = unit(unit_id);
 
-                    bfs<BFSPathInfo>(
-                        u,
+                    P initial = u.pos;
+
+                    bfs(
+                        initial,
                         [this](P pos) { return can_move_to_simple_car(pos); },
-                        [](const BFSPathInfo& pathInfo) { return false; },
+                        [](P pos) { return false; },
+                        [this, &u](P pos, number dist) { return rounds_to_move_car(u, pos, dist); },
                         [this](const BFSPathInfo& pathInfo) {
                             ++cinfo[pathInfo.dest].own_cars;
                         },
-                        [](const BFSPathInfo& a, BFSPathInfo& b){},
                         4
                     );
                 }
@@ -1237,9 +1240,6 @@ struct PLAYER_NAME : public Player {
             else {
                 for (int unit_id : warriors(player_id)) {
                     const Unit& u = unit(unit_id);
-
-                    if (can_move_to_simple_car(u.pos))
-                        ++global_info.targetable_enemy_warriors;
 
                     for (D dir : dirs) {
                         P dest = u.pos + dir;
@@ -1257,16 +1257,15 @@ struct PLAYER_NAME : public Player {
 
                     P initial = u.pos;
 
-                    bfs<BFSPathInfo>(
-                        u,
+                    bfs(
+                        initial,
                         [this](P pos) { return can_move_to_simple_car(pos); },
-                        [](const BFSPathInfo& pathInfo) { return false; },
+                        [](P pos) { return false; },
+                        [this, &u](P pos, number dist) { return rounds_to_move_car(u, pos, dist); },
                         [this](const BFSPathInfo& pathInfo) {
                             if (pathInfo.dist_rounds <= 4) ++cinfo[pathInfo.dest].enemy_cars;
                             cinfo[pathInfo.dest].enemy_cars_dist += 8 - pathInfo.dist_rounds;
-                            if (pathInfo.dist_rounds == 1) ++cinfo[pathInfo.dest].enemy_cars_dist_1;
                         },
-                        [](const BFSPathInfo& a, BFSPathInfo& b){},
                         8
                     );
                 }
@@ -1295,123 +1294,15 @@ struct PLAYER_NAME : public Player {
 
     }
 
-    float distance(P a, P b) {
-        return sqrt((a.i - b.i)*(a.i - b.i) + (a.j - b.j)*(a.j - b.j));
-    }
-
-    typedef pair<float, pair<snumber, snumber>> Edge;
-
-    void cluster(const vector<Pos>& X, vector<vector<Pos>>& C, int clusters) {
-        cerr << X.size() << endl;
-        vector<bool> seen_msp(X.size(), false);
-
-        priority_queue<Edge, vector<Edge>, greater<Edge>> Q_msp;
-        priority_queue<Edge> H;
-
-        if (X.size()) Q_msp.push({ 0, { 0,0 }});
-
-        vector<unordered_set<int>> G(X.size(), unordered_set<int>());
-
-        while (not Q_msp.empty()) {
-            Edge e = Q_msp.top();
-            snumber u = e.second.first;
-            snumber v = e.second.second;
-            Q_msp.pop();
-
-
-            if (not seen_msp[v]) {
-                seen_msp[v] = true;
-
-                G[u].insert(v);
-                G[v].insert(u);
-                H.push(e);
-
-                for (snumber t = 0; t < X.size(); ++t) {
-                    Q_msp.push({ distance(X[v], X[t]), { v, t }});
-                }
-            }
-        }
-
-        int remove_edges = clusters - 1;
-        while (not H.empty() and remove_edges > 0) {
-            Edge e = H.top();
-            H.pop();
-
-            G[e.second.first].erase(e.second.second);
-            G[e.second.second].erase(e.second.first);
-
-            --remove_edges;
-        }
-
-        vector<bool> seen_cc(X.size(), false);
-        queue<int> Q_cc;
-
-        C = vector<vector<Pos>>(clusters, vector<Pos>());
-        int cluster_index = 0;
-
-        for (int i = 0; i < G.size(); ++i) {
-            if (not seen_cc[i]) {
-                Q_cc.push(i);
-                seen_cc[i] = true;
-
-                while (not Q_cc.empty()) {
-                    int v = Q_cc.front();
-                    Q_cc.pop();
-
-                    C[cluster_index].push_back(X[v]);
-
-                    for (int x : G[v]) {
-                        if (not seen_cc[x]) {
-                            seen_cc[x] = true;
-                            Q_cc.push(x);
-                        }
-                    }
-                }
-
-                ++cluster_index;
-            }
-        }
-    }
-
-    void init_enemysets() {
-        vector<Pos> targets;
-
-        for (snumber player_id = 0; player_id < 4; ++player_id) {
-            if (player_id == me()) continue;
-
-            for (int unit_id : warriors(player_id)) {
-                const Unit& u = unit(unit_id);
-
-                if (can_move_to_simple_car(u.pos)) targets.push_back(u.pos);
-            }
-        }
-
-        vector<vector<Pos>> target_clusters;
-        cluster(targets, target_clusters, my_car_ids.size());
-
-        int i = 1;
-        for (const vector<Pos>& v : target_clusters) {
-            cerr << "Cluster " << i++ << ":" << endl;
-
-            for (P pos : v) {
-                cerr << pos << endl;
-            }
-        }
-    }
-
-    ostream* os;
-
     void round_init() {
         get_my_units();
 
         used_positions.clear();
-        targeted_warriors.clear();
 
         if (can_warriors_move()) units_to_command.insert(my_warrior_ids.begin(), my_warrior_ids.end());
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         init_unitinfo();
-        init_enemysets();
     }
 
     // endregion
@@ -1599,41 +1490,8 @@ struct PLAYER_NAME : public Player {
     // ██║     ███████╗██║  ██║   ██║
     // ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝
 
-    #if IS_DEBUG
-    string debug_messages[60][60];
-
-    void debug_message(P pos, const string& message) {
-        if (me() == 0)
-            debug_messages[pos.i][pos.j] += message + "\n";
-    }
-
-    void debug_message(const Unit& u, const string& message) {
-        debug_message(u.pos, message);
-    }
-
-
-    void write_debug() {
-        if (me() == 0) {
-            *os << "round " << round() << endl;
-            for (int i = 0; i < rows(); ++i)
-                for (int j = 0; j < cols(); ++j)
-                    if (debug_messages[i][j].length())
-                        *os << i << ' ' << j << ' ' << debug_messages[i][j] << "####\n";
-            *os << endl;
-        }
-    }
-    #endif
-
     void play() {
         shuffle_dirs();
-
-        #if IS_DEBUG
-        if (round() == 0) os = new ofstream("debug.res");
-
-        for (int i = 0; i < rows(); ++i)
-            for (int j = 0; j < cols(); ++j)
-                debug_messages[i][j] = "";
-        #endif
 
         if (round() == 0) first_init();
 
@@ -1648,16 +1506,8 @@ struct PLAYER_NAME : public Player {
         } while(not units_to_command.empty() and commanded > 0);
 
 
-        if (!units_to_command.empty())
-            for (int x : units_to_command)
-                cerr << ((unit(x).type == Car) ? "car" : "warrior") << ' ' << unit(x).pos << endl;
-
         //ensure(units_to_command.empty(), "Some units not commanded!")
         units_to_command.clear();
-
-        #if IS_DEBUG
-            write_debug();
-        #endif
     }
 
     // endregion

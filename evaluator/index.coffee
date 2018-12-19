@@ -4,7 +4,7 @@ queue = require 'queue'
 
 exec = util.promisify(exec)
 
-N_TESTS = 200
+N_TESTS = 10
 
 
 arr =
@@ -72,9 +72,9 @@ e = (cmd) ->
   execSync(cmd, { stdio: 'inherit' })
 
 
-e "cp AICancellara.cc AITest.cc"
+e "cp AIQuim.cc AITest.cc"
 e "sed -i '' -- 's/\#define IS_DEBUG 1/\#define IS_DEBUG 0/g' AITest.cc"
-e "sed -i '' -- \"s/\#define PLAYER_NAME Cancellara/\#define PLAYER_NAME Test/g\" AITest.cc"
+e "sed -i '' -- \"s/\#define PLAYER_NAME Quim/\#define PLAYER_NAME Test/g\" AITest.cc"
 e "make"
 
 shuffle = (a) ->
@@ -98,7 +98,11 @@ test = (seed, against) ->
 
   console.log(cmd)
 
-  { stderr } = await exec cmd
+  try
+    { stderr } = await exec cmd
+  catch error
+    console.error(error)
+    process.exit 1
 
   result = stderr.toString().split('\n')[-7..-4]
 
