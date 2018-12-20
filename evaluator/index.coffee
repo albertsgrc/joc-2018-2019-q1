@@ -4,7 +4,7 @@ queue = require 'queue'
 
 exec = util.promisify(exec)
 
-N_TESTS = 10
+N_TESTS = 100
 
 
 arr =
