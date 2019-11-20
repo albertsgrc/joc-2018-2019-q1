@@ -493,7 +493,13 @@ struct PLAYER_NAME : public Player {
 
             if (insertion.second) {
                 // Was not a used position, perform command
-                ensure(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me(), "attacking own unit!");
+
+                if (!(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me())) {
+                    debug(u, "attacking own unit");
+                    cerr << u.pos << endl;
+                }
+
+                //ensure(cell(destination).id == -1 or cell(destination).id == action.unit_id or unit(cell(destination).id).player != me(), "attacking own unit!");
                 action_command(action);
             }
             else if (u.type == Warrior and not is_thunderdome(actual, destination) and is_on(destination, Enemy, Warrior)) {
@@ -693,12 +699,13 @@ struct PLAYER_NAME : public Player {
             const Unit& unit,
             Safety safety,
             Owner owner,
-            UnitType type = UnitTypeSize)
+            UnitType type = UnitTypeSize,
+            function<bool(P)> dest_condition = [](P a) { return true; })
     {
         return bfs<BFSPathInfo>(
                 unit,
                 [&unit, this, safety](P pos) { return can_move_to(unit, pos, safety); },
-                [owner, type, this](const BFSPathInfo& pathInfo) { return is_on(pathInfo.dest, owner, type); }
+                [owner, type,&dest_condition, this](const BFSPathInfo& pathInfo) { return is_on(pathInfo.dest, owner, type) and dest_condition(pathInfo.dest); }
         );
     }
 
@@ -911,6 +918,8 @@ struct PLAYER_NAME : public Player {
 
     GlobalInfo global_info;
 
+    vector<unordered_set<int>> target_clusters;
+
     // endregion
 
 
@@ -926,6 +935,8 @@ struct PLAYER_NAME : public Player {
         P dest = warrior.pos + dir;
 
         const CellInfo& c = cinfo[dest];
+
+        auto water = bfs(warrior, Safe, Drink);
 
         number dist = type == Water ? c.water.dist : c.city.dist;
 
@@ -1249,7 +1260,7 @@ struct PLAYER_NAME : public Player {
                 for (int unit_id : warriors(player_id)) {
                     const Unit& u = unit(unit_id);
 
-                    if (can_move_to_simple_car(u.pos))
+                    if (can_move_to_simple_car(u.pos) and cinfo[u.pos].road.dist > 2)
                         ++global_info.targetable_enemy_warriors;
 
                     for (D dir : dirs) {
@@ -1312,7 +1323,7 @@ struct PLAYER_NAME : public Player {
 
     typedef pair<float, pair<snumber, snumber>> Edge;
 
-    void cluster(const vector<Pos>& X, vector<vector<Pos>>& C, int clusters) {
+    void cluster(const vector<Pos>& X, vector<unordered_set<int>>& C, int clusters) {
         vector<bool> seen_msp(X.size(), false);
 
         priority_queue<Edge, vector<Edge>, greater<Edge>> Q_msp;
@@ -1356,7 +1367,7 @@ struct PLAYER_NAME : public Player {
         vector<bool> seen_cc(X.size(), false);
         queue<int> Q_cc;
 
-        C = vector<vector<Pos>>(clusters, vector<Pos>());
+        C = vector<unordered_set<int>>(clusters, unordered_set<int>());
         int cluster_index = 0;
 
         for (int i = 0; i < G.size(); ++i) {
@@ -1368,7 +1379,7 @@ struct PLAYER_NAME : public Player {
                     int v = Q_cc.front();
                     Q_cc.pop();
 
-                    C[cluster_index].push_back(X[v]);
+                    C[cluster_index].insert(~X[v]);
 
                     for (int x : G[v]) {
                         if (not seen_cc[x]) {
@@ -1381,6 +1392,8 @@ struct PLAYER_NAME : public Player {
                 ++cluster_index;
             }
         }
+
+
     }
 
     void init_enemysets() {
@@ -1396,7 +1409,6 @@ struct PLAYER_NAME : public Player {
             }
         }
 
-        vector<vector<Pos>> target_clusters;
         cluster(targets, target_clusters, my_car_ids.size());
     }
 
@@ -1410,7 +1422,7 @@ struct PLAYER_NAME : public Player {
         units_to_command.insert(my_car_ids.begin(), my_car_ids.end());
 
         init_unitinfo();
-        init_enemysets();
+        //init_enemysets();
     }
 
     // endregion
